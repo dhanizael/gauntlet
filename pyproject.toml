@@ -1,0 +1,42 @@
+[project]
+name = "gauntlet"
+version = "0.1.0"
+description = "The anti-cheating layer for evaluating self-improving agents: sealed holdouts, persistence-leak guards, and keep/revert verdicts."
+readme = "README.md"
+authors = [
+    { name = "hamdani", email = "mhamdani35@gmail.com" }
+]
+requires-python = ">=3.11"
+license = { text = "MIT" }
+keywords = ["agents", "evaluation", "holdout", "contamination", "regression", "llm"]
+dependencies = []
+
+[project.scripts]
+gauntlet = "gauntlet.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12.13,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.8",
+    "ty>=0.0.81",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = ["D", "COM812", "ISC001", "TRY003", "EM101", "EM102", "S", "FBT001", "FBT002",
+           "PLR2004", "C901", "T201", "CPY001", "TC001", "TC003", "PLC0415"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ALL"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
