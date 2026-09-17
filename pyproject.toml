@@ -1,5 +1,5 @@
 [project]
-name = "gauntlet"
+name = "agent-gauntlet"
 version = "0.1.0"
 description = "The anti-cheating layer for evaluating self-improving agents: sealed holdouts, persistence-leak guards, and keep/revert verdicts."
 readme = "README.md"
@@ -17,6 +17,10 @@ gauntlet = "gauntlet.cli:main"
 [build-system]
 requires = ["uv_build>=0.12.13,<0.13.0"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = "src"
+module-name = "gauntlet"
 
 [dependency-groups]
 dev = [

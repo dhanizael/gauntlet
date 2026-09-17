@@ -45,6 +45,7 @@ def main(argv: list[str] | None = None) -> int:
     gs.add_argument("manifest", type=Path)
     gs.add_argument("--store", type=Path, action="append", required=True)
     gs.add_argument("--min-overlap", type=int, default=2)
+    gs.add_argument("--max-bytes", type=int, default=8 * 1024 * 1024)
     gs.add_argument("--json", type=Path, default=None)
     gsub.add_parser("selftest", help="plant a synthetic leak and prove it is caught")
 
@@ -73,27 +74,37 @@ def main(argv: list[str] | None = None) -> int:
 
 def _guard_scan(args: argparse.Namespace) -> int:
     records = load_manifest(args.manifest)
-    findings = scan_store(records, args.store, args.min_overlap)
-    for f in findings:
+    result = scan_store(records, args.store, args.min_overlap, args.max_bytes)
+    for f in result.findings:
         print(
             f"[{f.severity.upper():5s}] {f.store_file} :: instance {f.instance} "
             f"({f.matched_shingles}/{f.total_shingles} shingles, {f.overlap_pct}% overlap, "
             f"word@{f.first_word_pos}, ref {f.content_ref})"
         )
     if args.json:
-        args.json.write_text(json.dumps([finding_to_dict(f) for f in findings], indent=1))
-    if not findings:
+        args.json.write_text(json.dumps([finding_to_dict(f) for f in result.findings], indent=1))
+    reasons: dict[str, int] = {}
+    for _, why in result.skipped:
+        reasons[why] = reasons.get(why, 0) + 1
+    skip_note = ""
+    if result.skipped:
+        breakdown = ", ".join(f"{n} {k}" for k, n in sorted(reasons.items()))
+        skip_note = f", skipped {len(result.skipped)} ({breakdown})"
+    print(f"\nscanned {result.scanned} file(s){skip_note}")
+    if not result.findings:
         print("clean: no task content detected in stores")
         return 0
     print(
-        f"\n{len(findings)} finding(s). Retire leaked instances and regenerate from unused seeds."
+        f"{len(result.findings)} finding(s). "
+        "Retire leaked instances and regenerate from unused seeds."
     )
     return 1
 
 
 def _guard_selftest() -> int:
-    """Generate a synthetic holdout, plant one paraphrased leak into a fake agent
-    memory dir next to one clean note, and prove detection + redaction + no-FP."""
+    """Synthetic end-to-end proof: plant a paraphrased leak next to one clean note,
+    plus one oversized and one binary file that also contain the leak, and assert
+    detection, redaction, no false positives, and honest skip accounting."""
     with tempfile.TemporaryDirectory() as td:
         tdp = Path(td)
         task = tdp / "task.txt"
@@ -105,25 +116,37 @@ def _guard_selftest() -> int:
         )
         store = tdp / "agent_memory"
         store.mkdir()
-        (store / "LESSONS.md").write_text(
+        leak_text = (
             "# Lessons\n- the frostgate constraint (no dock may receive two consecutive "
             "refrigerated trucks, and the vermilion manifest must depart before the azure "
             "convoy clears weighbridge seven) keeps biting us on scheduling tasks\n"
             "- unrelated: prefer uv over pip\n"
         )
+        (store / "LESSONS.md").write_text(leak_text)
         (store / "clean_note.md").write_text("# Notes\n- always pin tool versions in CI\n")
+        (store / "huge_memory.md").write_text(leak_text + "x" * (4 * 1024 * 1024))
+        (store / "blob.bin").write_bytes(b"\x00\x01\x02" + leak_text.encode() + b"\x00")
 
         mf = tdp / "manifest.jsonl"
         add_instance(mf, "synthetic-1", "seed-42", [task])
-        findings = scan_store(load_manifest(mf), [store])
+        result = scan_store(load_manifest(mf), [store], max_bytes=2 * 1024 * 1024)
+        findings = result.findings
         by_file = {Path(f.store_file).name: f for f in findings}
         assert "LESSONS.md" in by_file, "selftest FAILED: planted leak not detected"
         assert "clean_note.md" not in by_file, "selftest FAILED: false positive"
+        assert "huge_memory.md" not in by_file, "selftest FAILED: oversize file was scanned"
+        assert "blob.bin" not in by_file, "selftest FAILED: binary file was scanned"
+        skip_reasons = {Path(p).name: why for p, why in result.skipped}
+        assert skip_reasons.get("huge_memory.md") == "too-large", (
+            "selftest FAILED: size skip unreported"
+        )
+        assert skip_reasons.get("blob.bin") == "binary", "selftest FAILED: binary skip unreported"
         leak = by_file["LESSONS.md"]
         print(
             f"selftest PASS: caught planted leak in LESSONS.md [{leak.severity}] "
-            f"{leak.matched_shingles} shingles matched, report contains no task text"
+            f"{leak.matched_shingles} shingles matched"
         )
+        print(f"  skipped reported: {sorted(skip_reasons.items())}")
         # verify redaction: no printable content in the serialized findings
         blob = json.dumps([finding_to_dict(f) for f in findings]).lower()
         for probe in ("frostgate", "vermilion manifest must depart", "logistics firm"):
