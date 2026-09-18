@@ -121,7 +121,7 @@ measurement culture should look like.
 
 ```bash
 uv sync
-uv run pytest                          # 50 tests, incl. the demo's self-assertion
+uv run pytest                          # 53 tests, incl. the demo's self-assertion
 uv run ruff check && uv run ruff format --check
 uv run ty check src/
 uv run gauntlet demo                   # the story must hold, or CI goes red

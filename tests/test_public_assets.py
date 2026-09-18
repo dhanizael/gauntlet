@@ -1,7 +1,18 @@
 """Public launch assets must remain accessible and evidence-only."""
 
 import struct
+import importlib.util
 from pathlib import Path
+
+
+def load_renderer_module():
+    spec = importlib.util.spec_from_file_location(
+        "render_public_assets", "scripts/render_public_assets.py"
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_causal_loop_svg_has_accessible_evidence_labels():
@@ -91,3 +102,27 @@ def test_ci_keeps_generated_proof_assets_current():
     workflow = Path(".github/workflows/ci.yml").read_text()
     assert "install -y imagemagick" in workflow
     assert "scripts/render_public_assets.py --check" in workflow
+
+
+def test_renderer_uses_convert_when_magick_is_unavailable(monkeypatch):
+    renderer = load_renderer_module()
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr(
+        renderer.shutil,
+        "which",
+        lambda name: "/usr/bin/convert" if name == "convert" else None,
+    )
+    monkeypatch.setattr(renderer.subprocess, "run", lambda command, check: calls.append(command))
+
+    renderer.magick(["input.svg", "output.png"])
+
+    assert calls == [["/usr/bin/convert", "input.svg", "output.png"]]
+
+
+def test_hero_asset_is_a_terminal_proof_not_a_marketing_poster():
+    renderer = Path("scripts/render_public_assets.py").read_text()
+    assert "ACT 1 / BASELINE" in renderer
+    assert "ACT 2 / SAME TEST" in renderer
+    assert "ACT 3 / FRESH HOLDOUT" in renderer
+    assert "YOUR AI DIDN&apos;T GET SMARTER" not in renderer
