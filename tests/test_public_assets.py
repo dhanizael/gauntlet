@@ -49,7 +49,16 @@ def test_case_study_states_evidence_and_limits():
 def test_readme_links_to_case_study_and_self_scan_path():
     readme = Path("README.md").read_text()
     assert "docs/CASE_STUDY.md" in readme
-    assert "Scan your own agent" in readme
+    assert "gauntlet guard scan" in readme
+
+
+def test_readme_leads_with_the_proof_reveal_and_autoplay_asset():
+    readme = Path("README.md").read_text()
+    assert "YOUR AI DIDN'T GET SMARTER." in readme
+    assert "IT GOT THE ANSWERS." in readme
+    assert "docs/assets/gauntlet-demo.gif" in readme
+    assert "docs/assets/gauntlet-social-card.png" in readme
+    assert "playable terminal cast" not in readme
 
 
 def png_dimensions(path: Path) -> tuple[int, int]:

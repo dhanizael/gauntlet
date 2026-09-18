@@ -5,43 +5,29 @@
 [![python](https://img.shields.io/pypi/pyversions/gauntlet-guard)](https://pypi.org/project/gauntlet-guard/)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-**Your agent passed the eval. But did it actually improve — or did it remember the test?**
+## YOUR AI DIDN'T GET SMARTER.
 
-Gauntlet is an **integrity layer for evaluating stateful AI agents**. Traditional
-benchmarks assume every trial starts clean. Stateful agents break that assumption:
-their memories, transcripts, and result directories quietly become the study material
-for their own next exam.
+## IT GOT THE ANSWERS.
+
+An agent can look dramatically better after it has seen the test. Gauntlet shows
+whether that score survives a fresh one.
 
 ```bash
 uvx --from gauntlet-guard gauntlet demo
 ```
 
-Ten seconds, $0, no LLM, deterministic — and it asserts its own story (CI runs it):
+**Eight seconds. $0. No LLM. Deterministic.** The demo makes an agent look
+better on the same test, catches the leaked memory, and asks the claim to
+survive a fresh holdout.
 
-```
-ACT 1  baseline: memory-equipped v2 fails like v1        → verdict: PROVISIONAL
-ACT 2  v2 "learns from feedback": task+answer → LESSONS.md
-       re-grade the SAME task                             → verdict: KEEP (+1.0!)
-ACT 3  guard scans the agent's memory vs the sealed manifest
-       [EXACT] LESSONS.md :: frostgate-A (13/13 shingles) — hashes, not content
-       instance RETIRED → fresh holdout instance → same agents, same memory
-                                                          → verdict: PROVISIONAL
-The +1.0 was memory, not intelligence.
-```
+![A three-act Gauntlet proof: the same-test score reaches KEEP net 1.0; Gauntlet catches an exact leak in LESSONS.md; a fresh test returns provisional net 0.0.](docs/assets/gauntlet-demo.gif)
 
-![Gauntlet's causal loop: an apparent improvement is checked for memory leakage, then retested on a fresh holdout.](docs/assets/gauntlet-causal-loop.svg)
+**[Run the proof](#quickstart)** · **[Read the real self-audit](docs/CASE_STUDY.md)** · **[Inspect the protocol](docs/RUN_PROTOCOL.md)** · **[Use the share card](docs/assets/gauntlet-social-card.png)**
 
-Prefer to watch it? The real command is available as a [playable terminal cast](docs/assets/gauntlet-demo.cast).
+## Why this happens
 
-## See it. Then check yours.
-
-- **See the proof:** read [the self-audit case study](docs/CASE_STUDY.md).
-- **Scan your own agent:** run `uvx --from gauntlet-guard gauntlet demo`, then follow the
-  memory-audit commands below.
-
-## How an agent can accidentally cheat your eval
-
-None of this requires malice. It requires a good feature and a reused task set:
+None of this requires malice. It takes one good feature and one reused task set.
+Memory, logs, and result directories quietly become the open book for the next exam:
 
 - `MEMORY.md` / `LESSONS.md` / `now.md` — "what I learned this run" writes, verbatim,
   the task you just evaluated it on;
@@ -52,24 +38,9 @@ None of this requires malice. It requires a good feature and a reused task set:
   away from a `near` hit;
 - generated helper artifacts — the "summary" file that quotes the task to explain it.
 
-If your agent stack has any of the above, your evals are measuring memory and
-capability as one number. gauntlet separates them:
-
-```
-   without gauntlet                                  with gauntlet
-   ─────────────                                     ─────────────
-   agent → eval → "improved!" → ship                 agent → sealed run (isolated slot,
-              │                                     env fingerprint, tamper-evident seal)
-              ▼                                              → blind grade (keep/revert/
-        writes task text into                                 provisional, bootstrap CI)
-        memory / transcripts                                  → guard scans memory vs sealed
-              │                                                 manifest (content-free report)
-              ▼                                              → leaked instance RETIRED → fresh
-        next eval "passes better"                              holdout regenerated → verdict
-              │                                                you can actually ship on
-              ▼
-        production surprise
-```
+If your agent stack has any of the above, your evals can measure memory and
+capability as one number. Gauntlet separates them: sealed run → blind grade →
+content-free memory scan → retire the leaked holdout → fresh test.
 
 ## Quickstart
 
