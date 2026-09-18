@@ -20,6 +20,16 @@ from .demo import run_demo
 from .experiment import init_experiment, load_experiment
 from .grade import GradeConfig, exit_code, grade_experiment, public_face
 from .guard import finding_to_dict, scan_store
+from .holdout import (
+    HoldoutIntegrityError,
+    HoldoutUsageError,
+    generate,
+    retire,
+    status,
+)
+from .holdout import (
+    verify as holdout_verify,
+)
 from .manifest import add_instance, load_manifest, retire_instance
 from .run import SlotError, blindpack, close, exec_trial, prep, verify
 
@@ -117,9 +127,43 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("demo", help="3-minute story: agent that 'improves' by remembering the test")
 
+    h = sub.add_parser(
+        "holdout", help="fresh-instance generation + retirement ledger (private side)"
+    )
+    hsub = h.add_subparsers(dest="hcmd", required=True)
+    hn = hsub.add_parser("new", help="generate provably-fresh instances from a family template")
+    hn.add_argument("family", type=Path)
+    hn.add_argument("--manifest", type=Path, required=True)
+    hn.add_argument("--private-dir", type=Path, required=True)
+    hn.add_argument("--count", type=int, default=1)
+    hn.add_argument("--seed", default=None, help="explicit seed for exact reproduction")
+    hn.add_argument("--ledger", type=Path, default=None)
+    hr = hsub.add_parser("retire", help="retire a leaked instance (manifest first, ledger second)")
+    hr.add_argument("family", type=Path)
+    hr.add_argument("--instance", required=True)
+    hr.add_argument("--manifest", type=Path, required=True)
+    hr.add_argument("--private-dir", type=Path, required=True)
+    hr.add_argument("--ledger", type=Path, default=None)
+    hs = hsub.add_parser("status", help="family counts, cardinality, warnings")
+    hs.add_argument("family", type=Path)
+    hs.add_argument("--manifest", type=Path, required=True)
+    hs.add_argument("--private-dir", type=Path, required=True)
+    hs.add_argument("--ledger", type=Path, default=None)
+    hv = hsub.add_parser("verify", help="ledger chain + manifest reconciliation (+ --deep)")
+    hv.add_argument("family", type=Path)
+    hv.add_argument("--manifest", type=Path, required=True)
+    hv.add_argument("--private-dir", type=Path, required=True)
+    hv.add_argument("--ledger", type=Path, default=None)
+    hv.add_argument(
+        "--deep", action="store_true", help="re-derive every instance from template+seed"
+    )
+
     args = ap.parse_args(argv)
     if getattr(args, "rcmd", None) == "exec" and trailing_cmd:
         args.agent_cmd = trailing_cmd
+
+    if args.cmd == "holdout":
+        return _holdout(args)
 
     if args.cmd == "manifest" and args.mcmd == "add":
         rec = add_instance(args.manifest, args.instance, args.seed, args.files)
@@ -147,6 +191,65 @@ def main(argv: list[str] | None = None) -> int:
         return _grade(args)
     if args.cmd == "demo":
         return run_demo()
+    return 2
+
+
+def _holdout(args: argparse.Namespace) -> int:
+    try:
+        if args.hcmd == "new":
+            for line in generate(
+                args.family,
+                args.manifest,
+                args.private_dir,
+                count=args.count,
+                seed=args.seed,
+                ledger=args.ledger,
+            ):
+                if "warning" in line:
+                    print(f"warning: {line['warning']}")
+                    continue
+                equals = line["task"]["verifier"].get("equals")
+                tail = f" verifier equals {equals}" if equals is not None else ""
+                print(f"generated {line['instance']} (seed {line['seed']}) -> {line['dir']}{tail}")
+            return 0
+        if args.hcmd == "retire":
+            r = retire(
+                args.family, args.instance, args.manifest, args.private_dir, ledger=args.ledger
+            )
+            print(
+                f"retired {r['instance']}: manifest={r['manifest_retired']} "
+                f"ledger={r['ledger_retired']}"
+            )
+            return 0
+        if args.hcmd == "status":
+            s = status(args.family, args.manifest, args.private_dir, ledger=args.ledger)
+            print(
+                f"family {s['id']}: generated={s['generated']} skipped={s['skipped']} "
+                f"retired={s['retired']} next_counter={s['next_counter']}"
+            )
+            print(f"cardinality: {s['cardinality_display']}")
+            for w in s["warnings"]:
+                print(f"warning: {w}")
+            return 0
+        if args.hcmd == "verify":
+            # aliased: run's seal-verify and holdout's verify are different tools
+            problems = holdout_verify(
+                args.family, args.manifest, args.private_dir, deep=args.deep, ledger=args.ledger
+            )
+            if problems:
+                for p in problems:
+                    print(f"  {p}", file=sys.stderr)
+                print("holdout verify: FAILED", file=sys.stderr)
+                return 1
+            depth = " (deep)" if args.deep else ""
+            print(f"holdout verify: chain intact, manifest in sync{depth}")
+            return 0
+    except HoldoutUsageError as exc:
+        print(f"gauntlet holdout: {exc}", file=sys.stderr)
+        return 2
+    except HoldoutIntegrityError as exc:
+        print(f"gauntlet holdout: {exc}", file=sys.stderr)
+        return 1
     return 2
 
 
