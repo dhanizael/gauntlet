@@ -1,0 +1,21 @@
+gauntlet demo — 'did your agent improve, or did it remember the test?'
+(scripted agents + the real public API; isolated temporary workdir)
+
+ACT 1 — baseline eval, task frostgate-A (both agents use the wrong method)
+  verdict: PROVISIONAL (net 0.0) — v2's memory has nothing to offer yet
+
+ACT 2 — v2's feedback loop persists the task + correct answer to its memory
+  verdict: KEEP (net 1.0) — ship it! v2 is +1.0 better!
+
+ACT 3 — guard scans the agent's persistent memory against the sealed manifest
+  [EXACT] LESSONS.md :: frostgate-A (13/13 shingles) — hashes, not content
+  instance frostgate-A RETIRED (a leaked holdout is dead; regenerate, don't repair)
+
+ACT 3b — fresh holdout instance (same shape, new numbers), same agents, same memory
+  verdict: PROVISIONAL (net 0.0) — the +1.0 was memory, not intelligence
+
+========================================================================
+Traditional benchmarks assume every trial starts clean. Stateful agents
+break that assumption. gauntlet is the integrity layer that notices.
+
+reproduce anytime:  gauntlet demo   (exit 0 if the story holds)

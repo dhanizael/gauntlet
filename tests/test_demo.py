@@ -2,8 +2,9 @@
 
 import io
 from contextlib import redirect_stdout
+from pathlib import Path
 
-from gauntlet.demo import run_demo
+from gauntlet.demo import render_demo, run_demo
 
 
 def test_demo_story_holds():
@@ -29,3 +30,8 @@ def test_demo_leaves_no_task_text_in_findings_lines():
     finding_lines = [ln for ln in buf.getvalue().splitlines() if "[EXACT]" in ln]
     assert finding_lines
     assert not any("SUM OF SQUARES" in ln for ln in finding_lines)
+
+
+def test_checked_in_demo_transcript_is_current():
+    transcript = Path("docs/assets/demo-transcript.txt").read_text()
+    assert transcript == render_demo()

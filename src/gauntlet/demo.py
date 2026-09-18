@@ -17,6 +17,8 @@ The demo asserts its own narrative: if any act deviates, it exits non-zero.
 from __future__ import annotations
 
 import tempfile
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 
 from .experiment import Experiment, init_experiment, load_experiment
@@ -95,7 +97,7 @@ def run_demo() -> int:
         add_instance(mf, "frostgate-A", "seed-A", [prompt_a])
 
         print("gauntlet demo — 'did your agent improve, or did it remember the test?'")
-        print(f"(scripted agents + the real public API; workdir: {root})\n")
+        print("(scripted agents + the real public API; isolated temporary workdir)\n")
 
         # ---- Act 1: honest baseline ----------------------------------------------
         print("ACT 1 — baseline eval, task frostgate-A (both agents use the wrong method)")
@@ -122,7 +124,7 @@ def run_demo() -> int:
         res = scan_store(load_manifest(mf), [mem.parent])
         for f in res.findings:
             print(
-                f"  [{f.severity.upper()}] {f.store_file} :: {f.instance} "
+                f"  [{f.severity.upper()}] {Path(f.store_file).name} :: {f.instance} "
                 f"({f.matched_shingles}/{f.total_shingles} shingles) — hashes, not content"
             )
         assert any(f.severity == "exact" for f in res.findings), "act 3: contamination missed"
@@ -146,3 +148,11 @@ def run_demo() -> int:
         print("break that assumption. gauntlet is the integrity layer that notices.")
         print("\nreproduce anytime:  gauntlet demo   (exit 0 if the story holds)")
     return 0
+
+
+def render_demo() -> str:
+    """Run the self-asserting demo and return its complete public transcript."""
+    buffer = StringIO()
+    with redirect_stdout(buffer):
+        assert run_demo() == 0
+    return buffer.getvalue()
