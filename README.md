@@ -138,6 +138,10 @@ verdict: KEEP  (careful vs quick)
 gauntlet manifest add ~/.private/eval/manifest.jsonl --instance task-0001 --seed s-77 prompt.txt
 gauntlet guard scan   ~/.private/eval/manifest.jsonl --store ~/agent/LESSONS.md --store ~/agent/logs/
 # findings cite hash references, never content — safe to paste into issues
+
+# a leaked holdout is dead: retire it, then generate a provably-fresh one
+gauntlet holdout retire family.json --instance task-0001 --manifest mf.jsonl --private-dir ~/.private/holdout/
+gauntlet holdout new    family.json --manifest mf.jsonl --private-dir ~/.private/holdout/
 ```
 
 ### A worked example you can copy
@@ -190,7 +194,7 @@ correctly calibrated (`NEAR`/`TRACE`). Full write-up:
 | `grade` (v0.3) | preregistered verdict engine, bootstrap CI, exit codes as verdicts | shipped |
 | `demo` (v0.3.2) | the three-act failure mode, $0, self-asserting in CI | shipped |
 | `guard audit` (v0.3.3) | zero-setup memory-surface discovery, content-free | shipped |
-| `holdout` (v0.4) | fresh-instance generation + retirement ledger | next |
+| `holdout` (v0.4) | family templates, provably-fresh generation, retirement ledger | shipped |
 
 Built from a private protocol that runs on its own author: doctrine changes stay
 `PROVISIONAL` until they beat the previous version on repeated, holdout-guarded evals.
@@ -198,7 +202,7 @@ Built from a private protocol that runs on its own author: doctrine changes stay
 ## Written down before it shipped
 
 Decisions precede code and both are public: **[docs/adr/](docs/adr/)** records every
-frozen call (11 ADRs), **[ROADMAP.md](ROADMAP.md)** pins non-goals as firmly as
+frozen call (12 ADRs), **[ROADMAP.md](ROADMAP.md)** pins non-goals as firmly as
 targets, **[SECURITY.md](SECURITY.md)** treats "silent untrustworthiness" as the
 vulnerability class, **[CONTRIBUTING.md](CONTRIBUTING.md)** states the gates
 honestly, and the [negative-result issue template](.github/ISSUE_TEMPLATE/negative_result.md)
@@ -208,7 +212,7 @@ makes publishing a failure as easy as publishing a win.
 
 ```bash
 uv sync
-uv run pytest                          # 69 tests, incl. the demo's self-assertion
+uv run pytest                          # 101 tests, incl. the demo's self-assertion
 uv run ruff check && uv run ruff format --check
 uv run ty check src/
 uv run gauntlet demo                   # the story must hold, or CI goes red

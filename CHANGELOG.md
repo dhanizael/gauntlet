@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.4.0 — 2026-09-18
+
+`gauntlet holdout` — regeneration becomes a proof, not a hope.
+
+- **Family templates** (private-side JSON): typed slots (`int`, `int_list`,
+  `choice`, `permutation`), `{{ name }}` rendering, optional `answer_cmd`
+  that derives the verifier's expected value from the slot values (runs with
+  cwd = the family dir; relative scripts are validated to exist). Instance
+  dirs carry `prompt.txt`, `fixtures/`, and a ready-to-feed `task.json`.
+- **Version-stable PRNG**: counter-mode SHA-256 with rejection sampling.
+  stdlib `random` is NOT stable across Python versions — byte-drift would
+  silently rot provenance. A golden-hash test pins one family+seed digest;
+  the CI matrix (3.11 + 3.13) proves it byte-identical.
+- **Dual freshness gate**: exact slot-digest collision intra-family
+  (same-family instances share boilerplate by design — text distance would
+  lie there), ≥2-shingle overlap cross-family against the manifest. Skipped
+  counters are recorded honestly; exhaustion exits 1 with the budget named.
+- **Retirement ledger**: append-only, hash-chained JSONL, 0600, private
+  side. `retire` writes the manifest first (guard reads the manifest — stop
+  the bleed), ledger second; a crash between the two writes is a named
+  divergence, not a silent one. `verify --deep` re-derives every instance
+  from template + seed and proves content hashes still match. A hash chain
+  cannot see its own tail — deep verification exists precisely for that.
+- **Content-free ledger**: hashes and ids only — a leaked ledger leaks
+  nothing (redaction contract, ADR-0002).
+- Design pre-registered in `docs/HOLDOUT_DESIGN.md` + [ADR-0012](docs/adr/0012-holdout-families.md)
+  BEFORE code. 101 tests (29 new).
+
 ## v0.3.3 — 2026-09-18
 
 `guard audit` — the zero-setup hook — and a README that answers "is this my
