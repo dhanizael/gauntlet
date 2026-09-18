@@ -39,7 +39,7 @@ class Experiment:
         """Latest record per slot: the state machine projects over the log."""
         latest: dict[str, dict] = {}
         for r in self.records:
-            if r["kind"] != "trial-created":
+            if r["kind"] != "trial-created" and "slot" in r:
                 latest[r["slot"]] = r
         return latest.get(slot, {})
 

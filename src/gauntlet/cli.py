@@ -16,6 +16,7 @@ from pathlib import Path
 
 from . import __version__
 from .experiment import init_experiment, load_experiment
+from .grade import GradeConfig, exit_code, grade_experiment, public_face
 from .guard import finding_to_dict, scan_store
 from .manifest import add_instance, load_manifest, retire_instance
 from .run import SlotError, blindpack, close, exec_trial, prep, verify
@@ -88,6 +89,21 @@ def main(argv: list[str] | None = None) -> int:
     if len(argv) >= 2 and argv[0] == "run" and argv[1] == "exec" and "--" in argv[2:]:
         idx = argv.index("--", 2)
         trailing_cmd, argv = argv[idx + 1 :], argv[:idx]
+    gr = sub.add_parser(
+        "grade", help="verdict engine: keep/revert/provisional (exit code IS the verdict)"
+    )
+    gr.add_argument("expdir", type=Path)
+    gr.add_argument("--primary", required=True, help="arm claiming the improvement")
+    gr.add_argument("--baseline", required=True, help="arm to beat")
+    gr.add_argument("--margin", type=float, default=0.10)
+    gr.add_argument("--bootstrap-b", type=int, default=10_000)
+    gr.add_argument("--seed", type=int, default=20260918)
+    gr.add_argument("--judge-scores", type=Path, default=None, help="blind pseud->score JSON")
+    gr.add_argument("--require-every-task", action="store_true")
+    gr.add_argument("--max-excluded-pct", type=float, default=25.0)
+    gr.add_argument("--json", type=Path, default=None, help="private-face verdict JSON")
+    gr.add_argument("--public", type=Path, default=None, help="redacted shareable verdict JSON")
+
     args = ap.parse_args(argv)
     if getattr(args, "rcmd", None) == "exec" and trailing_cmd:
         args.agent_cmd = trailing_cmd
@@ -112,7 +128,47 @@ def main(argv: list[str] | None = None) -> int:
         return _guard_selftest()
     if args.cmd == "run":
         return _run_dispatch(args)
+    if args.cmd == "grade":
+        return _grade(args)
     return 2
+
+
+def _grade(args: argparse.Namespace) -> int:
+    cfg = GradeConfig(
+        primary=args.primary,
+        baseline=args.baseline,
+        margin=args.margin,
+        bootstrap_b=args.bootstrap_b,
+        seed=args.seed,
+        require_every_task=args.require_every_task,
+        max_excluded_pct=args.max_excluded_pct,
+    )
+    judge = None
+    if args.judge_scores:
+        judge = {k: float(v) for k, v in json.loads(args.judge_scores.read_text()).items()}
+    verdict = grade_experiment(args.expdir, cfg, judge)
+    if verdict.get("integrity_failure"):
+        print("INTEGRITY FAILURE — seal violations; no verdict issued", file=sys.stderr)
+        for slot, probs in verdict["violations"].items():
+            for p in probs:
+                print(f"  {slot}: {p}", file=sys.stderr)
+        return exit_code(verdict)
+    print(
+        f"verdict: {verdict['decision'].upper()}  ({verdict['primary']} vs {verdict['baseline']})"
+    )
+    print(
+        f"  pairs={verdict['pairs_graded']} net={verdict['net_winrate']} CI95={verdict['ci95']} "
+        f"excluded={verdict['excluded_pct']}%"
+    )
+    for r in verdict["reasons"]:
+        print(f"  reason: {r}")
+    for ex in verdict["excluded"]:
+        print(f"  excluded: {ex['slot']} ({ex['task']}/{ex['arm']}): {ex['reason']}")
+    if args.json:
+        args.json.write_text(json.dumps(verdict, indent=1, sort_keys=True))
+    if args.public:
+        args.public.write_text(json.dumps(public_face(verdict), indent=1, sort_keys=True))
+    return exit_code(verdict)
 
 
 def _run_dispatch(args: argparse.Namespace) -> int:

@@ -1,5 +1,30 @@
 # Changelog
 
+## v0.3.0 — 2026-09-18
+
+The verdict engine: `gauntlet grade` — **the full loop now closes.**
+
+- Design pre-registered in `docs/GRADE_DESIGN.md` BEFORE code; the engine
+  implements that document literally (pipeline order, frozen decision rule,
+  redaction contract, and test commitments T1-T11 each have named tests).
+- Pipeline: ledger chain-of-custody hash -> seal re-verification (violations
+  abort the verdict, exit 3) -> drift quarantine (exclusions >25% => corrupted
+  evidence, no claim) -> deterministic verifiers (`expect_file`, `check_cmd`
+  run against a read-only copy of the sealed outputs; `judge` scores merged
+  only from an external blind file) -> paired signs -> percentile bootstrap
+  (B=10_000, fixed seed: byte-identical reruns) -> `keep|revert|provisional`.
+- `provisional` means *absence of proof*, not a third outcome: default posture
+  of any claim that cannot clear its margin is revert.
+- `--require-every-task`: conservative gate for doctrine changes — one
+  heroic task cannot carry an average; missing evidence counts as no-win.
+- `--public` face: verdicts are shareable — identities, counts, hashes only;
+  expected values never serialize (private face already carries no details).
+- Exit codes are the verdict: 0 keep / 1 revert / 2 provisional / 3 integrity.
+- Found and fixed en route: `state_of` KeyError on slot-less ledger records
+  (blindpack entries) — caught by T8 before any release, as designed.
+- 39 tests; gates verified on true 3.11 and 3.13 venvs, exit codes unchecked
+  by pipes.
+
 ## v0.2.0 — 2026-09-18
 
 The trial protocol: `gauntlet run`.

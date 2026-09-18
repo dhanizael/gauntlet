@@ -34,6 +34,14 @@ pipx install gauntlet-guard        # or: uv tool install gauntlet-guard
 # one-command proof the tool works before you trust it:
 uvx --from gauntlet-guard gauntlet guard selftest
 
+# the full loop in six commands (transcript below):
+gauntlet run init exp --tasks tasks.json --arms harness,raw --repeats 3
+gauntlet run prep exp --slot t-xxxxxxxx --fixtures fx/
+gauntlet run exec exp --slot t-xxxxxxxx -- python3 my_agent.py
+gauntlet run blindpack exp --out pack            # optional: hand to blind judges
+gauntlet grade exp --primary harness --baseline raw
+# -> "verdict: KEEP   pairs=9 net=1.0 CI95=[1.0, 1.0]   exit 0
+
 # 1. Register a holdout instance (run this from the PRIVATE side, never in agent context)
 gauntlet manifest add ~/.private/eval/manifest.jsonl \
     --instance sched-frostgate-0001 --seed s-77 \
@@ -118,8 +126,20 @@ real-world use and refused to keep.
 - `run` (v0.2): **shipped** — opaque slots, sha-verified isolated workspaces,
   environment drift detection, tamper-evident seals, blind judge packs.
   Protocol spec + real transcript: [docs/RUN_PROTOCOL.md](docs/RUN_PROTOCOL.md)
-- `grade` (verdict engine, ≥N repeats + spread, provisional→verified lifecycle): next
-- `grade` (verdict engine, ≥N repeats + spread, provisional→verified lifecycle): next
+- `grade` (v0.3): **shipped** — verdict engine with a *preregistered* decision
+  rule ([docs/GRADE_DESIGN.md](docs/GRADE_DESIGN.md) is the authority; code follows
+  it): seal re-verify → drift quarantine → deterministic grading → paired bootstrap
+  → `keep | revert | provisional`, exit codes as verdicts.
+- Loop closed: `holdout → run → seal → grade → guard` — improvement claims are
+  now falsifiable end to end. Design-first discipline included: T1-T11 commitments
+  were written before the engine, and caught a real bug pre-release.
+- `grade` (v0.3): **shipped** — verdict engine with a *preregistered* decision
+  rule ([docs/GRADE_DESIGN.md](docs/GRADE_DESIGN.md) is the authority; code follows
+  it): seal re-verify → drift quarantine → deterministic grading → paired bootstrap
+  → `keep | revert | provisional`, exit codes as verdicts.
+- Loop closed: `holdout → run → seal → grade → guard` — improvement claims are
+  now falsifiable end to end. Design-first discipline included: T1-T11 commitments
+  were written before the engine, and caught a real bug pre-release.
 - `holdout` (seed generators + retirement ledger, contract spec): next
 
 Built from a battle-tested private protocol: doctrine changes tagged `PROVISIONAL`
