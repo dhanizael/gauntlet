@@ -1,6 +1,12 @@
 # gauntlet
 
+[![ci](https://github.com/dhanizael/gauntlet/actions/workflows/ci.yml/badge.svg)](https://github.com/dhanizael/gauntlet/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/gauntlet-guard)](https://pypi.org/project/gauntlet-guard/)
+[![python](https://img.shields.io/pypi/pyversions/gauntlet-guard)](https://pypi.org/project/gauntlet-guard/)
+[![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 **The anti-cheating layer for evaluating self-improving agents.**
+*(PyPI package: `gauntlet-guard` — see [ADR-0001](docs/adr/0001-distribution-name.md); repo, import, and CLI: `gauntlet`.)*
 
 > Your agent has memory now. That makes your agent evaluations quietly lie.
 
@@ -156,6 +162,16 @@ uv run ty check src/
 uv run gauntlet guard selftest
 uv run gauntlet run --help
 ```
+
+## The repo is the receipt
+
+Decisions precede code and both are public: **[docs/adr/](docs/adr/)** records every frozen
+call (8 accepted ADRs, including one that killed a version-inflating release),
+**[ROADMAP.md](ROADMAP.md)** pins non-goals as firmly as targets,
+**[SECURITY.md](SECURITY.md)** treats "silent untrustworthiness" as the vulnerability class,
+**[CONTRIBUTING.md](CONTRIBUTING.md)** states the gates honestly (unmasked exit codes,
+dual-version verification), and the **[negative-result issue template](.github/ISSUE_TEMPLATE/negative_result.md)**
+is what this whole project believes measurement culture should look like.
 
 ## License
 
