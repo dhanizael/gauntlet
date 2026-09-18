@@ -82,16 +82,17 @@ def diff(start: dict, end: dict) -> list[str]:
         out.append(f"platform {start['platform']} -> {end['platform']}")
     if start["pkg_sha"] != end["pkg_sha"]:
         a, b = set(start["packages"]), set(end["packages"])
-        for pkg in sorted(b - a):
-            out.append(f"pkg+{pkg}")
-        for pkg in sorted(a - b):
-            out.append(f"pkg-{pkg}")
-        names = lambda spec: spec.split("==")[0]  # noqa: E731
-        amap = {names(p): p for p in a}
-        bmap = {names(p): p for p in b}
-        for name in sorted(set(amap) & set(bmap)):
-            if amap[name] != bmap[name]:
-                out.append(
-                    f"pkg~{name}: {amap[name].split('==')[-1]} -> {bmap[name].split('==')[-1]}"
-                )
+        out += [f"pkg+{p}" for p in sorted(b - a)]
+        out += [f"pkg-{p}" for p in sorted(a - b)]
+
+        def name_of(spec: str) -> str:
+            return spec.split("==", maxsplit=1)[0]
+
+        amap = {name_of(p): p for p in a}
+        bmap = {name_of(p): p for p in b}
+        out += [
+            f"pkg~{n}: {amap[n].split('==')[-1]} -> {bmap[n].split('==')[-1]}"
+            for n in sorted(set(amap) & set(bmap))
+            if amap[n] != bmap[n]
+        ]
     return out

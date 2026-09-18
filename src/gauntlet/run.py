@@ -16,7 +16,6 @@ Every mechanism here exists because of a real failure mode:
 from __future__ import annotations
 
 import json
-import os
 import random
 import secrets as sec
 import shutil
@@ -111,7 +110,7 @@ def exec_trial(exp: Experiment, slot: str, cmd: list[str], timeout: float | None
     ws = workspace_of(exp.dir, slot)
     t0 = time.perf_counter()
     try:
-        proc = subprocess.run(cmd, cwd=ws, timeout=timeout)
+        proc = subprocess.run(cmd, cwd=ws, timeout=timeout, check=False)
         code, err = proc.returncode, None
     except subprocess.TimeoutExpired:
         code, err = -1, "timeout"
@@ -136,8 +135,7 @@ def verify(exp: Experiment, slot: str) -> list[str]:
             problems.append(f"missing {path}")
         elif current[path]["sha"] != meta["sha"]:
             problems.append(f"modified {path}")
-    for path in sorted(set(current) - set(sealed)):
-        problems.append(f"added {path}")
+    problems += [f"added {path}" for path in sorted(set(current) - set(sealed))]
     return problems
 
 
@@ -174,10 +172,8 @@ def blindpack(exp: Experiment, packdir: Path) -> dict:
         "Judge each output against its task rubric without speculating on provenance.\n"
     )
     unblind_path = exp.dir / "unblind.json"
-    fd = unblind_path.open("w")
-    fd.write(json.dumps(unblind, indent=1, sort_keys=True))
-    fd.close()
-    os.chmod(unblind_path, 0o600)
+    unblind_path.write_text(json.dumps(unblind, indent=1, sort_keys=True))
+    unblind_path.chmod(0o600)
     append_record(exp.dir, {"kind": "blindpacked", "count": len(jobs), "pack": str(packdir)})
     return {"packed": len(jobs), "pack": str(packdir), "unblind": str(unblind_path)}
 

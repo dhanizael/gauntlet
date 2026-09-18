@@ -139,7 +139,7 @@ def files_manifest(root: Path, exclude_prefixes: tuple[str, ...] = ()) -> list[d
     return out
 
 
-def _write_json_atomic(path: Path, obj) -> None:
+def _write_json_atomic(path: Path, obj: dict) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(obj, indent=1, sort_keys=True))
     tmp.replace(path)

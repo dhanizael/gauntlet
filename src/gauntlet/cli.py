@@ -142,7 +142,7 @@ def _run(args: argparse.Namespace) -> int:
         mark = "DRIFT" if res["drift"] else "clean"
         print(
             f"closed {res['slot']}: exit={res['exit']} {mark} "
-            f"({res['files']} files sealed, {res['duration_s'] if 'duration_s' in res else '?'}s)"
+            f"({res['files']} files sealed, {res.get('duration_s', '?')}s)"
         )
         for d in res["drift"]:
             print(f"  drift: {d}")
