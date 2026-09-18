@@ -31,6 +31,12 @@ The +1.0 was memory, not intelligence.
 
 ![Gauntlet's causal loop: an apparent improvement is checked for memory leakage, then retested on a fresh holdout.](docs/assets/gauntlet-causal-loop.svg)
 
+## See it. Then check yours.
+
+- **See the proof:** read [the self-audit case study](docs/CASE_STUDY.md).
+- **Scan your own agent:** run `uvx --from gauntlet-guard gauntlet demo`, then follow the
+  memory-audit commands below.
+
 ## How an agent can accidentally cheat your eval
 
 None of this requires malice. It requires a good feature and a reused task set:
