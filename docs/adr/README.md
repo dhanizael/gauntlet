@@ -14,3 +14,4 @@ Proposed | Accepted | Superseded by NNNN. The ADR is the memory; the CHANGELOG i
 | 0007 | Manifests are private keys; the private side never enters the repo | Accepted |
 | 0008 | Fixed-seed bootstrap: byte-reproducible verdicts over sampling purity | Accepted |
 | 0009 | PyPI trusted publishing (OIDC); upload tokens abolished | Accepted |
+| 0010 | `gauntlet demo`: self-asserting three-act story as public API | Accepted |

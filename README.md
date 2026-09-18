@@ -5,173 +5,146 @@
 [![python](https://img.shields.io/pypi/pyversions/gauntlet-guard)](https://pypi.org/project/gauntlet-guard/)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-**The anti-cheating layer for evaluating self-improving agents.**
-*(PyPI package: `gauntlet-guard` — see [ADR-0001](docs/adr/0001-distribution-name.md); repo, import, and CLI: `gauntlet`.)*
+**Your agent passed the eval. But did it actually improve — or did it remember the test?**
 
-> Your agent has memory now. That makes your agent evaluations quietly lie.
+Gauntlet is an **integrity layer for evaluating stateful AI agents**. Traditional
+benchmarks assume every trial starts clean. Stateful agents break that assumption:
+their memories, transcripts, and result directories quietly become the study material
+for their own next exam.
 
-Everyone evaluates their agents, skills, prompts, and AGENTS.md files. Almost nobody
-audits **the evaluator itself**. `gauntlet` closes that gap: sealed holdouts generated
-from private seeds, a persistence-leak guard that treats your agent's own memory files
-as the cheating channel they are, and blind paired-arm verdicts (`keep / revert /
-provisional`) with repeated-run statistics — because agents are stochastic and a
-single run proves nothing.
+```bash
+uvx --from gauntlet-guard gauntlet demo
+```
 
-## The problem, concretely
+Ten seconds, $0, no LLM, deterministic — and it asserts its own story (CI runs it):
 
-You improved a skill. You A/B tested it on your eval tasks. It won. You shipped it.
-Two weeks later you find out:
+```
+ACT 1  baseline: memory-equipped v2 fails like v1        → verdict: PROVISIONAL
+ACT 2  v2 "learns from feedback": task+answer → LESSONS.md
+       re-grade the SAME task                             → verdict: KEEP (+1.0!)
+ACT 3  guard scans the agent's memory vs the sealed manifest
+       [EXACT] LESSONS.md :: frostgate-A (13/13 shingles) — hashes, not content
+       instance RETIRED → fresh holdout instance → same agents, same memory
+                                                          → verdict: PROVISIONAL
+The +1.0 was memory, not intelligence.
+```
 
-- the eval task text was paraphrased into `LESSONS.md` / `now.md` / a vector store by
-  the agent **during** an earlier run — the next runs studied for the test;
-- the winning arm won by noise (n=1, no spread reported);
-- your `provisional → verified` promotion was decided by vibes, not a gate.
+## How an agent can accidentally cheat your eval
 
-Benchmark contamination literature worries about *pretraining corpora* (n-grams,
-MinHash, memorized MMLU). None of it addresses the agent-native leak path:
-**persistent memory inside the evaluated system itself.** gauntlet's threat model
-starts there.
+None of this requires malice. It requires a good feature and a reused task set:
+
+- `MEMORY.md` / `LESSONS.md` / `now.md` — "what I learned this run" writes, verbatim,
+  the task you just evaluated it on;
+- saved trajectories & transcripts — the full prompt survives in a log directory the
+  next session retrieves from;
+- result/eval output directories — fixtures copied into run artifacts stay agent-readable;
+- vector stores / retrieval memory — the paraphrase you thought was safe is 6 shingles
+  away from a `near` hit;
+- generated helper artifacts — the "summary" file that quotes the task to explain it.
+
+If your agent stack has any of the above, your evals are measuring memory and
+capability as one number. gauntlet separates them:
+
+```
+   without gauntlet                                  with gauntlet
+   ─────────────                                     ─────────────
+   agent → eval → "improved!" → ship                 agent → sealed run (isolated slot,
+              │                                     env fingerprint, tamper-evident seal)
+              ▼                                              → blind grade (keep/revert/
+        writes task text into                                 provisional, bootstrap CI)
+        memory / transcripts                                  → guard scans memory vs sealed
+              │                                                 manifest (content-free report)
+              ▼                                              → leaked instance RETIRED → fresh
+        next eval "passes better"                              holdout regenerated → verdict
+              │                                                you can actually ship on
+              ▼
+        production surprise
+```
 
 ## Quickstart
 
 ```bash
 pipx install gauntlet-guard        # or: uv tool install gauntlet-guard
+uvx --from gauntlet-guard gauntlet guard selftest   # prove the scanner before trusting it
 
-# one-command proof the tool works before you trust it:
-uvx --from gauntlet-guard gauntlet guard selftest
-
-# the full loop in six commands (transcript below):
+# the loop, end to end:
 gauntlet run init exp --tasks tasks.json --arms harness,raw --repeats 3
-gauntlet run prep exp --slot t-xxxxxxxx --fixtures fx/
-gauntlet run exec exp --slot t-xxxxxxxx -- python3 my_agent.py
-gauntlet run blindpack exp --out pack            # optional: hand to blind judges
-gauntlet grade exp --primary harness --baseline raw
-# -> "verdict: KEEP   pairs=9 net=1.0 CI95=[1.0, 1.0]   exit 0
+gauntlet run prep   exp --slot t-xxxxxxxx --fixtures fx/
+gauntlet run exec   exp --slot t-xxxxxxxx -- python3 my_agent.py
+gauntlet run blindpack exp --out pack              # pseudonyms only; judges see no arms
+gauntlet run status exp
+gauntlet grade    exp --primary harness --baseline raw
+# exit code IS the verdict: 0 keep · 1 revert · 2 provisional · 3 integrity failure
 
-# 1. Register a holdout instance (run this from the PRIVATE side, never in agent context)
-gauntlet manifest add ~/.private/eval/manifest.jsonl \
-    --instance sched-frostgate-0001 --seed s-77 \
-    task-input.txt answer-key.md
-
-# 2. After every eval session: scan the agent's persistent stores for leakage
-gauntlet guard scan ~/.private/eval/manifest.jsonl \
-    --store ~/agent-workspace/.agent-state/ \
-    --store ~/agent-workspace/LESSONS.md \
-    --store ~/agent-transcripts/
-# findings are reported by hash reference, never by content (see Design principles)
-# exit code 1 = leak found → retire the instance, regenerate from an unused seed
-
-# 3. Prove the tool works (synthetic planted leak + skip accounting):
-gauntlet guard selftest
+# the memory audit:
+gauntlet manifest add ~/.private/eval/manifest.jsonl --instance task-0001 --seed s-77 prompt.txt
+gauntlet guard scan   ~/.private/eval/manifest.jsonl --store ~/agent/LESSONS.md --store ~/agent/logs/
+# findings cite hash references, never content — safe to paste into issues
 ```
 
 ## We ran our own gauntlet first
 
 The first real scan target was the author's actual agent infrastructure: 12 sealed
-task instances (the development pack of a private eval suite), scanned against the
-agent's persistent stores — long-term memory file, journal log, working-state
+task instances, scanned against long-term memory files, journal logs, working-state
 directories, and evaluation run results. 271 files, **3.1 seconds**, zero runtime
-dependencies.
-
-```
-$ gauntlet guard scan manifest.jsonl --store LESSONS.md --store journal.log ...
-[NEAR ] results/…/L5-lens-r1/config.py          :: instance L5 (20/217 shingles, 9.22%)
-[NEAR ] results/…/L5-lens-r2/config.py          :: instance L5 (14/217 shingles, 6.45%)
-[TRACE] results/…/L5-raw-r1/config.py           :: instance L5 (9/217 shingles, 4.15%)
-[TRACE] results/…/L5-*/test_config_loader.py    :: instance L5 (6/217 shingles)  ×3
-[TRACE] results/…/L1-raw-r1/count_patterns.py   :: instance L1 (3/133 shingles, 2.26%)
-
-scanned 239 file(s), skipped 32 (17 binary, 15 too-large)
-7 finding(s).
-```
-
-The result is a perfect demonstration of why this tool exists: the agent's own memory
-files were **clean**, but task fixtures persisted verbatim into run-result directories —
-real, previously uncounted contamination vectors, exactly the failure mode a sealed
-holdout is designed to survive. Severity tracking is calibrated: shared boilerplate
-surfaced as `TRACE` (human look), fixture content surfaced as `NEAR` (retire it). A
-control scan of unrelated notes returned clean with no false positives, and the
+dependencies. The agent's memory files were **clean** — but task fixtures had
+persisted verbatim into run-result directories: real, previously uncounted
+contamination vectors, calibrated correctly (`NEAR` for fixture content, `TRACE` for
+shared boilerplate). A control scan of unrelated notes: zero false positives. The
 machine-readable report contains **zero task text** — verified by assertion in CI.
 
 ## Design principles
 
-1. **The scanner must not leak.** Guard reports file, word-position, match counts and
-   *hash references only* — never the matched text. The report is safe to paste into
-   an issue even when the task is secret.
-2. **Manifests are private keys.** Task content lives only in the manifest file;
-   guard consumes it without echoing it. Keep manifests out of any agent-readable
-   surface (`chmod 700` the directory).
-3. **Deterministic first, judge second.** Hash/shingle evidence outranks any LLM
-   opinion; `guard` is fully executable in CI.
-4. **Leaks are lifecycle events, not warnings.** Detection → `retire` → regenerate
-   from an unused seed. A benchmark instance that leaked once is dead; say so in
-   the record.
-5. **Verdicts over scores.** `keep / revert / provisional` with ≥N repeated runs and
-   reported spread — an improvement that cannot survive the gauntlet is not an
-   improvement.
-
-## How detection works
-
-Task content is fingerprinted into 8-word normalized shingles (unicode-folded,
-punctuation-free, case-folded → SHA-256 prefixes). A store is scanned in a single
-pass; findings are classified:
-
-| severity | trigger | action |
-|---|---|---|
-| `exact` | normalized task text appears verbatim | retire + regenerate |
-| `near`  | ≥5% of task shingles matched (paraphrase, copy-edit) | retire + regenerate |
-| `trace` | ≥2 matched shingles, below the near threshold | human review |
-
-Oversize (>8 MiB default, configurable) and binary files are skipped **and reported** —
-a guard that silently hides what it didn't scan is the bug we found on day one of
-real-world use and refused to keep.
+1. **The scanner must not leak.** Findings are file, position, counts, hash
+   references — never matched text. The report is safe to publish even when the task
+   is secret. ([ADR-0002](docs/adr/0002-redaction-contract.md))
+2. **Manifests are private keys.** Task content lives only in the manifest; keep it
+   out of every agent-readable surface. ([ADR-0007](docs/adr/0007-private-side-doctrine.md))
+3. **Deterministic first, judge second.** Shingle/hash evidence outranks LLM opinion;
+   judges enter only as external blind score files. ([ADR-0006](docs/adr/0006-deterministic-first-external-judges.md))
+4. **Leaks are lifecycle events, not warnings.** Detection → retire → regenerate from
+   an unused seed. A holdout that leaked once is dead.
+5. **Verdicts over scores.** `keep / revert / provisional` with ≥N repeats and
+   reported spread; **provisional means the claim failed to be proven.**
+   ([ADR-0005](docs/adr/0005-provisional-is-absence-of-proof.md))
+6. **Decisions are written before they are implemented.** The verdict engine's rules
+   were frozen in [docs/GRADE_DESIGN.md](docs/GRADE_DESIGN.md) before the code existed;
+   the demo asserts its own narrative in CI.
 
 ## Status
 
-- `guard` + `manifest`: shipped (v0.1) — CI on pytest/ruff/ty, selftest in the pipeline
-- `run` (v0.2): **shipped** — opaque slots, sha-verified isolated workspaces,
-  environment drift detection, tamper-evident seals, blind judge packs.
-  Protocol spec + real transcript: [docs/RUN_PROTOCOL.md](docs/RUN_PROTOCOL.md)
-- `grade` (v0.3): **shipped** — verdict engine with a *preregistered* decision
-  rule ([docs/GRADE_DESIGN.md](docs/GRADE_DESIGN.md) is the authority; code follows
-  it): seal re-verify → drift quarantine → deterministic grading → paired bootstrap
-  → `keep | revert | provisional`, exit codes as verdicts.
-- Loop closed: `holdout → run → seal → grade → guard` — improvement claims are
-  now falsifiable end to end. Design-first discipline included: T1-T11 commitments
-  were written before the engine, and caught a real bug pre-release.
-- `grade` (v0.3): **shipped** — verdict engine with a *preregistered* decision
-  rule ([docs/GRADE_DESIGN.md](docs/GRADE_DESIGN.md) is the authority; code follows
-  it): seal re-verify → drift quarantine → deterministic grading → paired bootstrap
-  → `keep | revert | provisional`, exit codes as verdicts.
-- Loop closed: `holdout → run → seal → grade → guard` — improvement claims are
-  now falsifiable end to end. Design-first discipline included: T1-T11 commitments
-  were written before the engine, and caught a real bug pre-release.
-- `holdout` (seed generators + retirement ledger, contract spec): next
+| module | what it is | state |
+|---|---|---|
+| `guard` + `manifest` (v0.1) | persistence-leak scanner, content-free reports | shipped |
+| `run` (v0.2) | sealed isolated trials: opaque slots, drift forensics, blind packs | shipped |
+| `grade` (v0.3) | preregistered verdict engine, bootstrap CI, exit codes as verdicts | shipped |
+| `demo` (v0.3.2) | the three-act failure mode, $0, self-asserting in CI | shipped |
+| `holdout` (v0.4) | fresh-instance generation + retirement ledger | next |
 
-Built from a battle-tested private protocol: doctrine changes tagged `PROVISIONAL`
-until they beat the previous version on repeated, holdout-guarded evals — gauntlet
-is that gauntlet, made a tool.
+Built from a battle-tested private protocol: doctrine changes stay `PROVISIONAL`
+until they beat the previous version on repeated, holdout-guarded evals. gauntlet is
+that gauntlet, made a tool.
+
+## The repo is the receipt
+
+Decisions precede code and both are public: **[docs/adr/](docs/adr/)** records every
+frozen call (10 ADRs, including one that killed a version-inflating release),
+**[ROADMAP.md](ROADMAP.md)** pins non-goals as firmly as targets,
+**[SECURITY.md](SECURITY.md)** treats "silent untrustworthiness" as the vulnerability
+class, **[CONTRIBUTING.md](CONTRIBUTING.md)** states the gates honestly (unmasked exit
+codes, dual-version verification), and the
+**[negative-result issue template](.github/ISSUE_TEMPLATE/negative_result.md)** is what
+measurement culture should look like.
 
 ## Development
 
 ```bash
 uv sync
-uv run pytest
+uv run pytest                          # 41 tests, incl. the demo's self-assertion
 uv run ruff check && uv run ruff format --check
 uv run ty check src/
-uv run gauntlet guard selftest
-uv run gauntlet run --help
+uv run gauntlet demo                   # the story must hold, or CI goes red
 ```
-
-## The repo is the receipt
-
-Decisions precede code and both are public: **[docs/adr/](docs/adr/)** records every frozen
-call (8 accepted ADRs, including one that killed a version-inflating release),
-**[ROADMAP.md](ROADMAP.md)** pins non-goals as firmly as targets,
-**[SECURITY.md](SECURITY.md)** treats "silent untrustworthiness" as the vulnerability class,
-**[CONTRIBUTING.md](CONTRIBUTING.md)** states the gates honestly (unmasked exit codes,
-dual-version verification), and the **[negative-result issue template](.github/ISSUE_TEMPLATE/negative_result.md)**
-is what this whole project believes measurement culture should look like.
 
 ## License
 

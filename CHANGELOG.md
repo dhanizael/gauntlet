@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.3.2 — 2026-09-18
+
+`gauntlet demo` — the failure mode, made impossible to miss.
+
+- Three acts, ten seconds, $0, deterministic: an agent "improves" by +1.0 by
+  writing the task into its own memory; guard catches the EXACT contamination
+  (content-free report), the instance retires, a fresh holdout collapses the
+  verdict back to provisional. Scripted agents exercise the real public API.
+- The demo asserts its own narrative and runs in CI: if any act deviates,
+  the release goes red. (ADR-0010)
+- README rebuilt around the demo: hero question, before/after diagram,
+  "How an agent can accidentally cheat your eval" (5 concrete paths).
+- First release published through **trusted publishing** (OIDC, no token):
+  the pipeline proven in v0.3.0's duplicate-rejection test now ships for real.
+
 ## v0.3.0 — 2026-09-18
 
 The verdict engine: `gauntlet grade` — **the full loop now closes.**

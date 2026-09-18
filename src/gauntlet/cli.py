@@ -15,6 +15,7 @@ import tempfile
 from pathlib import Path
 
 from . import __version__
+from .demo import run_demo
 from .experiment import init_experiment, load_experiment
 from .grade import GradeConfig, exit_code, grade_experiment, public_face
 from .guard import finding_to_dict, scan_store
@@ -104,6 +105,8 @@ def main(argv: list[str] | None = None) -> int:
     gr.add_argument("--json", type=Path, default=None, help="private-face verdict JSON")
     gr.add_argument("--public", type=Path, default=None, help="redacted shareable verdict JSON")
 
+    sub.add_parser("demo", help="3-minute story: agent that 'improves' by remembering the test")
+
     args = ap.parse_args(argv)
     if getattr(args, "rcmd", None) == "exec" and trailing_cmd:
         args.agent_cmd = trailing_cmd
@@ -130,6 +133,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_dispatch(args)
     if args.cmd == "grade":
         return _grade(args)
+    if args.cmd == "demo":
+        return run_demo()
     return 2
 
 

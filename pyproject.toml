@@ -1,6 +1,6 @@
 [project]
 name = "gauntlet-guard"
-version = "0.3.0"
+version = "0.3.2"
 description = "The anti-cheating layer for evaluating self-improving agents: sealed holdouts, persistence-leak guards, and keep/revert verdicts."
 readme = "README.md"
 authors = [
