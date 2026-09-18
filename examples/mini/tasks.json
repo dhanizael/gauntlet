@@ -1,0 +1,12 @@
+[
+  {
+    "id": "mini-A",
+    "prompt": "Task mini-A: read task/fixtures/nums_A.txt and write the LARGEST EVEN number in it to result.txt.",
+    "verifier": {"type": "expect_file", "path": "result.txt", "equals": "4"}
+  },
+  {
+    "id": "mini-B",
+    "prompt": "Task mini-B: read task/fixtures/nums_B.txt and write the LARGEST EVEN number in it to result.txt.",
+    "verifier": {"type": "expect_file", "path": "result.txt", "equals": "6"}
+  }
+]
