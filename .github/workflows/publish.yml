@@ -1,0 +1,27 @@
+name: publish
+# Trusted publishing (PyPI OIDC): no upload tokens exist anywhere, ever.
+# Requires the PyPI publisher to name EXACTLY this file (publish.yml) and
+# this repo (dhanizael/gauntlet). If the publisher was configured with an
+# environment, uncomment `environment` below to match it.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+  id-token: write   # the OIDC identity PyPI trusts
+
+jobs:
+  pypi:
+    runs-on: ubuntu-latest
+    # environment: pypi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: tag must match project version (no wrong-artifact-from-wrong-tag)
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          VER=$(uv run --quiet python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          if [ "$TAG" != "$VER" ]; then echo "refusing: tag v$TAG != pyproject version $VER"; exit 1; fi
+      - run: uv build
+      - run: uv publish

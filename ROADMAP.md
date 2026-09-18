@@ -16,9 +16,9 @@ completed items link to the release that closed them.
 - **v0.4 — `holdout`** *(issue #3)*: seed → fresh instance generation at eval time (instances
   never persist agent-side), retirement ledger wired to `guard` (leak ⇒ retire ⇒ regenerate
   from unused seed), versioned `HOLDOUT-CONTRACT` between generator / runner / grader.
-- **v0.5 — release integrity**: PyPI trusted publishing via GitHub Actions OIDC (no human-
-  handled upload tokens, ever again), signed release artifacts, schema freeze candidate for
-  `exp.json` / `ledger.jsonl` / verdict.
+- **v0.5 — release integrity**: PyPI trusted publishing via GitHub Actions OIDC —
+  **workflow landed (ADR-0009); first live proof = next tag.** Remaining: signed
+  release artifacts, schema freeze candidate for `exp.json` / `ledger.jsonl` / verdict.
 - **v1.0 — protocol stable**: no breaking changes to ledger/verdict schemas; real-world
   adoption documented; judge-adapter guide (external blind scoring) documented as first-class.
 

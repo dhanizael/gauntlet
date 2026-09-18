@@ -13,3 +13,4 @@ Proposed | Accepted | Superseded by NNNN. The ADR is the memory; the CHANGELOG i
 | 0006 | Deterministic verifiers first; LLM judges only as external blind score files | Accepted |
 | 0007 | Manifests are private keys; the private side never enters the repo | Accepted |
 | 0008 | Fixed-seed bootstrap: byte-reproducible verdicts over sampling purity | Accepted |
+| 0009 | PyPI trusted publishing (OIDC); upload tokens abolished | Accepted |
