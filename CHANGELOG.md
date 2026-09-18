@@ -19,6 +19,9 @@ First release: the integrity layer that ships today — `guard` + `manifest`.
   clean file untouched, oversized + binary files skipped-and-reported,
   report verified content-free.
 - Python ≥3.11, MIT, 12 tests, CI matrix (3.11/3.13): pytest + ruff + ty + selftest.
+- Published to PyPI as **`gauntlet-guard`** (distribution name; `agent-gauntlet` was
+  blocked by PyPI's PEP-503 similarity rule against an existing live project;
+  import name and CLI remain `gauntlet` / `gauntlet`).
 
 Roadmap: `run` (blind paired arms, isolated workspaces, drift fingerprint),
 `grade` (keep/revert verdict engine, ≥N repeats + spread), `holdout` (seed

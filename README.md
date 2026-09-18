@@ -29,10 +29,10 @@ starts there.
 ## Quickstart
 
 ```bash
-pipx install agent-gauntlet        # or: uv tool install agent-gauntlet
-# (PyPI publish is the next step after launch; day-one install from source:)
-git clone https://github.com/dhanizael/gauntlet && cd gauntlet \
-  && uv run gauntlet guard selftest   # prove the tool before you trust it
+pipx install gauntlet-guard        # or: uv tool install gauntlet-guard
+
+# one-command proof the tool works before you trust it:
+uvx --from gauntlet-guard gauntlet guard selftest
 
 # 1. Register a holdout instance (run this from the PRIVATE side, never in agent context)
 gauntlet manifest add ~/.private/eval/manifest.jsonl \
