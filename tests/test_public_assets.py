@@ -1,5 +1,6 @@
 """Public launch assets must remain accessible and evidence-only."""
 
+import struct
 from pathlib import Path
 
 
@@ -49,3 +50,29 @@ def test_readme_links_to_case_study_and_self_scan_path():
     readme = Path("README.md").read_text()
     assert "docs/CASE_STUDY.md" in readme
     assert "Scan your own agent" in readme
+
+
+def png_dimensions(path: Path) -> tuple[int, int]:
+    """Read a PNG's IHDR size without a production image dependency."""
+    data = path.read_bytes()
+    assert data.startswith(b"\x89PNG\r\n\x1a\n")
+    assert data[12:16] == b"IHDR"
+    return struct.unpack(">II", data[16:24])
+
+
+def test_proof_assets_have_real_image_headers_and_expected_dimensions():
+    gif = Path("docs/assets/gauntlet-demo.gif")
+    gif_data = gif.read_bytes()
+    assert gif_data.startswith(b"GIF89a")
+    assert struct.unpack("<HH", gif_data[6:10]) == (1200, 630)
+    assert png_dimensions(Path("docs/assets/gauntlet-social-card.png")) == (1200, 630)
+
+
+def test_public_assets_preserve_only_the_demo_reveal():
+    renderer = Path("scripts/render_public_assets.py").read_text()
+    transcript = Path("docs/assets/demo-transcript.txt").read_text()
+    for phrase in ("KEEP (net 1.0)", "[EXACT] LESSONS.md", "PROVISIONAL (net 0.0)"):
+        assert phrase in renderer
+    for secret in ("SUM OF SQUARES", "ANSWER:"):
+        assert secret not in transcript
+        assert secret in renderer  # renderer rejects secret-bearing input before rendering

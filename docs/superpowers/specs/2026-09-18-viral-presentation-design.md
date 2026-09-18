@@ -24,9 +24,9 @@ IT GOT THE ANSWERS.
 
 The evidence is the product's deterministic three-act demo:
 
-1. `KEEP (+1.0)` creates the apparent win.
+1. `KEEP (net 1.0)` creates the apparent win.
 2. The guard finds an `EXACT` memory leak.
-3. The fresh holdout returns `PROVISIONAL (0.0)`.
+3. The fresh holdout returns `PROVISIONAL (net 0.0)`.
 
 No generated faces, robots, stock cyberpunk, fabricated dashboards, or claims
 about real third-party products. Every visual derives from the checked-in demo
@@ -56,7 +56,7 @@ have no narration requirement, and show only the decisive lines. The final
 frame holds the reveal long enough to be understood:
 
 ```
-KEEP (+1.0)  ->  [EXACT] LESSONS.md  ->  PROVISIONAL (0.0)
+KEEP (net 1.0)  ->  [EXACT] LESSONS.md  ->  PROVISIONAL (net 0.0)
 the improvement was memory, not intelligence
 ```
 
@@ -73,7 +73,7 @@ poster, not a flowchart:
 YOUR AI DIDN'T GET SMARTER.
 IT GOT THE ANSWERS.
 
-  +1.0  KEEP       [EXACT] LEAK       0.0  FRESH TEST
+  KEEP (net 1.0)       [EXACT] LEAK       PROVISIONAL (net 0.0)
 ```
 
 Use a restrained black/near-black terminal palette, one danger accent for the

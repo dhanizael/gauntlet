@@ -14,7 +14,7 @@
 
 - Add no runtime dependency to `gauntlet-guard`.
 - Render only from checked-in public demo text; never include task secret text or answers.
-- Use actual demo values: `KEEP (+1.0)`, `[EXACT] LESSONS.md`, and `PROVISIONAL (0.0)`.
+- Use actual demo values: `KEEP (net 1.0)`, `[EXACT] LESSONS.md`, and `PROVISIONAL (net 0.0)`.
 - Do not call GitHub APIs, change repository settings, create releases, or push.
 - Do not describe a raw `.cast` file as playable.
 - The README must provide descriptive alternative text for raster assets.
@@ -43,7 +43,7 @@ def test_proof_assets_have_real_image_headers_and_expected_dimensions():
 
 def test_public_assets_preserve_only_the_demo_reveal():
     text = Path("scripts/render_public_assets.py").read_text()
-    for phrase in ("KEEP (+1.0)", "[EXACT] LESSONS.md", "PROVISIONAL (0.0)"):
+    for phrase in ("KEEP (net 1.0)", "[EXACT] LESSONS.md", "PROVISIONAL (net 0.0)"):
         assert phrase in text
     assert "SUM OF SQUARES" not in text
     assert "ANSWER:" not in text
@@ -62,7 +62,7 @@ ASSET_DIR = Path("docs/assets")
 DEMO_GIF = ASSET_DIR / "gauntlet-demo.gif"
 SOCIAL_CARD = ASSET_DIR / "gauntlet-social-card.png"
 
-REVEAL = ("KEEP (+1.0)", "[EXACT] LESSONS.md", "PROVISIONAL (0.0)")
+REVEAL = ("KEEP (net 1.0)", "[EXACT] LESSONS.md", "PROVISIONAL (net 0.0)")
 
 def main(argv: Sequence[str] | None = None) -> int:
     # Render SVG frames with no secret content, then call `magick` with fixed
@@ -196,4 +196,3 @@ git commit -m "docs: polish proof asset readability"
 - [ ] **Step 5: Report local-only result**
 
 Report the branch name, commit list, test evidence, generated asset paths, and the explicit fact that no remote, GitHub setting, release, or public About field was changed.
-
