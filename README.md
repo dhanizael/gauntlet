@@ -29,6 +29,8 @@ ACT 3  guard scans the agent's memory vs the sealed manifest
 The +1.0 was memory, not intelligence.
 ```
 
+![Gauntlet's causal loop: an apparent improvement is checked for memory leakage, then retested on a fresh holdout.](docs/assets/gauntlet-causal-loop.svg)
+
 ## How an agent can accidentally cheat your eval
 
 None of this requires malice. It requires a good feature and a reused task set:
