@@ -80,7 +80,17 @@ def main(argv: list[str] | None = None) -> int:
     rb.add_argument("expdir", type=Path)
     rb.add_argument("--out", type=Path, required=True)
 
+    # argparse's "--" handling differs across 3.11-3.13 (CI caught what local
+    # could not); split the agent command off manually so the convention
+    # "gauntlet run exec DIR --slot S -- CMD..." works on every version.
+    argv = list(sys.argv[1:] if argv is None else argv)
+    trailing_cmd: list[str] = []
+    if len(argv) >= 2 and argv[0] == "run" and argv[1] == "exec" and "--" in argv[2:]:
+        idx = argv.index("--", 2)
+        trailing_cmd, argv = argv[idx + 1 :], argv[:idx]
     args = ap.parse_args(argv)
+    if getattr(args, "rcmd", None) == "exec" and trailing_cmd:
+        args.agent_cmd = trailing_cmd
 
     if args.cmd == "manifest" and args.mcmd == "add":
         rec = add_instance(args.manifest, args.instance, args.seed, args.files)
