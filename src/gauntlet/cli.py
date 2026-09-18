@@ -1,11 +1,9 @@
 """gauntlet CLI — sealed holdouts, persistence-leak guards, keep/revert verdicts.
 
-v0 commands:
-  gauntlet manifest add  MANIFEST --instance ID --seed S FILES...
-  gauntlet manifest list MANIFEST
-  gauntlet manifest retire MANIFEST --instance ID
-  gauntlet guard scan    MANIFEST --store PATH [--store PATH] [--json OUT]
-  gauntlet guard selftest
+commands:
+  gauntlet manifest add|list|retire      sealed instance registry (private side)
+  gauntlet guard scan|selftest           persistence-leak detection
+  gauntlet run init|prep|exec|close|status|verify|blindpack   trial protocol
 """
 
 from __future__ import annotations
@@ -16,10 +14,13 @@ import sys
 import tempfile
 from pathlib import Path
 
+from . import __version__
+from .experiment import init_experiment, load_experiment
 from .guard import finding_to_dict, scan_store
 from .manifest import add_instance, load_manifest, retire_instance
+from .run import SlotError, blindpack, close, exec_trial, prep, verify
 
-BANNER = "gauntlet 0.1.0 — the anti-cheating layer for evaluating self-improving agents"
+BANNER = f"gauntlet {__version__} — the anti-cheating layer for evaluating self-improving agents"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -49,6 +50,36 @@ def main(argv: list[str] | None = None) -> int:
     gs.add_argument("--json", type=Path, default=None)
     gsub.add_parser("selftest", help="plant a synthetic leak and prove it is caught")
 
+    r = sub.add_parser("run", help="trial protocol: isolated arms, drift checks, sealed outputs")
+    rsub = r.add_subparsers(dest="rcmd", required=True)
+    ri = rsub.add_parser("init", help="create an experiment (tasks x arms x repeats)")
+    ri.add_argument("expdir", type=Path)
+    ri.add_argument("--tasks", type=Path, required=True, help="JSON: [{id, prompt}, ...]")
+    ri.add_argument("--arms", required=True, help="comma-separated, e.g. harness,raw")
+    ri.add_argument("--repeats", type=int, default=3)
+    ri.add_argument("--seed", default=None, help="assignment seed (audit trail)")
+    rp = rsub.add_parser("prep", help="fresh opaque workspace for one trial")
+    rp.add_argument("expdir", type=Path)
+    rp.add_argument("--slot", required=True)
+    rp.add_argument("--fixtures", type=Path, default=None)
+    rx = rsub.add_parser("exec", help="run any agent command inside the trial workspace")
+    rx.add_argument("expdir", type=Path)
+    rx.add_argument("--slot", required=True)
+    rx.add_argument("--timeout", type=float, default=None)
+    rx.add_argument("agent_cmd", nargs="*", help="agent command after --")
+    rc = rsub.add_parser("close", help="close a prepared trial (drift check + seal)")
+    rc.add_argument("expdir", type=Path)
+    rc.add_argument("--slot", required=True)
+    rs = rsub.add_parser("status", help="trial states (arm hidden unless --reveal)")
+    rs.add_argument("expdir", type=Path)
+    rs.add_argument("--reveal", action="store_true")
+    rv = rsub.add_parser("verify", help="recompute a trial's seal; list any tampering")
+    rv.add_argument("expdir", type=Path)
+    rv.add_argument("--slot", required=True)
+    rb = rsub.add_parser("blindpack", help="emit judge-facing artifacts, pseudonymized")
+    rb.add_argument("expdir", type=Path)
+    rb.add_argument("--out", type=Path, required=True)
+
     args = ap.parse_args(argv)
 
     if args.cmd == "manifest" and args.mcmd == "add":
@@ -69,6 +100,90 @@ def main(argv: list[str] | None = None) -> int:
         return _guard_scan(args)
     if args.cmd == "guard" and args.gcmd == "selftest":
         return _guard_selftest()
+    if args.cmd == "run":
+        return _run_dispatch(args)
+    return 2
+
+
+def _run_dispatch(args: argparse.Namespace) -> int:
+    try:
+        return _run(args)
+    except SlotError as exc:
+        print(f"gauntlet run: {exc}", file=sys.stderr)
+        return 2
+    except FileNotFoundError as exc:
+        print(f"gauntlet run: missing file: {exc.filename}", file=sys.stderr)
+        return 2
+
+
+def _run(args: argparse.Namespace) -> int:
+    if args.rcmd == "init":
+        tasks = json.loads(args.tasks.read_text())
+        exp = init_experiment(args.expdir, tasks, args.arms.split(","), args.repeats, args.seed)
+        n = len(exp.header["tasks"]) * len(exp.header["arms"]) * args.repeats
+        print(
+            f"experiment {exp.header['id']}: {n} trials ({len(exp.header['tasks'])} tasks x "
+            f"{len(exp.header['arms'])} arms x {args.repeats} repeats) -> {args.expdir}"
+        )
+        print(f"slots: gauntlet run status {args.expdir}")
+        return 0
+    if args.rcmd == "prep":
+        exp = load_experiment(args.expdir)
+        res = prep(exp, args.slot, args.fixtures)
+        print(f"prepared {res['slot']} (task {res['task']}) -> {res['workspace']}")
+        return 0
+    if args.rcmd == "exec":
+        exp = load_experiment(args.expdir)
+        cmd = list(args.agent_cmd)
+        if not cmd:
+            print("gauntlet run exec: no command given after --", file=sys.stderr)
+            return 2
+        res = exec_trial(exp, args.slot, cmd, args.timeout)
+        mark = "DRIFT" if res["drift"] else "clean"
+        print(
+            f"closed {res['slot']}: exit={res['exit']} {mark} "
+            f"({res['files']} files sealed, {res['duration_s'] if 'duration_s' in res else '?'}s)"
+        )
+        for d in res["drift"]:
+            print(f"  drift: {d}")
+        return 0 if res["exit"] == 0 else 1
+    if args.rcmd == "close":
+        exp = load_experiment(args.expdir)
+        res = close(exp, args.slot)
+        print(f"closed {res['slot']}: {res['status']} ({res['files']} files)")
+        for d in res["drift"]:
+            print(f"  drift: {d}")
+        return 0
+    if args.rcmd == "status":
+        exp = load_experiment(args.expdir)
+        states = {s: exp.state_of(s) for s in exp.slots()}
+        for slot, created in exp.slots().items():
+            st = states[slot].get("kind", "created")
+            extra = ""
+            if st == "closed":
+                st = states[slot]["status"]
+                extra = f" exit={states[slot].get('exit')} files={len(states[slot]['outputs'])}"
+            line = f"{slot:12s} {created['task']:12s} {st:14s}{extra}"
+            if args.reveal:
+                line += f"  arm={created['arm']}"
+            print(line)
+        return 0
+    if args.rcmd == "verify":
+        exp = load_experiment(args.expdir)
+        problems = verify(exp, args.slot)
+        if not problems:
+            print(f"{args.slot}: seal intact")
+            return 0
+        print(f"{args.slot}: SEAL VIOLATION", file=sys.stderr)
+        for p in problems:
+            print(f"  {p}", file=sys.stderr)
+        return 1
+    if args.rcmd == "blindpack":
+        exp = load_experiment(args.expdir)
+        res = blindpack(exp, args.out)
+        print(f"packed {res['packed']} trial(s) -> {res['pack']}")
+        print(f"unblind map (PRIVATE): {res['unblind']}")
+        return 0
     return 2
 
 

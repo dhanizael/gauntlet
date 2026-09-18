@@ -114,9 +114,11 @@ real-world use and refused to keep.
 
 ## Status
 
-- `guard` + `manifest`: **shipped (v0.1)** — 12 tests, CI on pytest/ruff/ty, selftest
-  in the build pipeline
-- `run` (blind paired arms, isolated workspaces, environment drift fingerprinting): next
+- `guard` + `manifest`: shipped (v0.1) — CI on pytest/ruff/ty, selftest in the pipeline
+- `run` (v0.2): **shipped** — opaque slots, sha-verified isolated workspaces,
+  environment drift detection, tamper-evident seals, blind judge packs.
+  Protocol spec + real transcript: [docs/RUN_PROTOCOL.md](docs/RUN_PROTOCOL.md)
+- `grade` (verdict engine, ≥N repeats + spread, provisional→verified lifecycle): next
 - `grade` (verdict engine, ≥N repeats + spread, provisional→verified lifecycle): next
 - `holdout` (seed generators + retirement ledger, contract spec): next
 
@@ -132,6 +134,7 @@ uv run pytest
 uv run ruff check && uv run ruff format --check
 uv run ty check src/
 uv run gauntlet guard selftest
+uv run gauntlet run --help
 ```
 
 ## License

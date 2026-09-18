@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.2.0 — 2026-09-18
+
+The trial protocol: `gauntlet run`.
+
+- `run init|prep|exec|close|status|verify|blindpack` — tasks x arms x repeats
+  into opaque single-use slots. Fixtures copied (never linked) with per-file
+  sha verification; symlink-bearing fixture trees refused.
+- Environment drift: python + installed-package fingerprints at prep and close;
+  any drift is enumerated on the close record and marked `sealed-drift`.
+  (Born from a real incident: a mid-experiment pip install that silently
+  invalidated every later trial.)
+- Seal + `verify`: outputs manifest (path,size,sha256) recomputable — post-close
+  edits, deletions, additions are detected.
+- `blindpack`: judge-facing artifacts contain pseudonyms only; arm assignments
+  live exclusively in a chmod-600 `unblind.json` on the private side.
+- `run` coordinates any agent command (exit + duration captured); it records
+  and proves, it does not judge — verdicts are v0.3 `grade`.
+- 28 tests, CI matrix unchanged (3.11/3.13). PyPI: `gauntlet-guard` v0.2.0
+  pending token refresh (distribution name; import and CLI remain `gauntlet`).
+
 ## v0.1.0 — 2026-09-18
 
 First release: the integrity layer that ships today — `guard` + `manifest`.

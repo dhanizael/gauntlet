@@ -1,6 +1,6 @@
 [project]
 name = "gauntlet-guard"
-version = "0.1.0"
+version = "0.2.0"
 description = "The anti-cheating layer for evaluating self-improving agents: sealed holdouts, persistence-leak guards, and keep/revert verdicts."
 readme = "README.md"
 authors = [
@@ -52,7 +52,8 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = ["D", "COM812", "ISC001", "TRY003", "EM101", "EM102", "S", "FBT001", "FBT002",
-           "PLR2004", "C901", "T201", "CPY001", "TC001", "TC003", "PLC0415"]
+           "PLR2004", "C901", "T201", "CPY001", "TC001", "TC003", "PLC0415",
+           "PLR0911", "PLR0912", "PLR0915"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["ALL"]
