@@ -98,10 +98,10 @@ def test_public_assets_preserve_only_the_demo_reveal():
         assert secret in renderer  # renderer rejects secret-bearing input before rendering
 
 
-def test_ci_keeps_generated_proof_assets_current():
+def test_ci_verifies_public_proof_without_pinning_an_image_encoder():
     workflow = Path(".github/workflows/ci.yml").read_text()
-    assert "install -y imagemagick" in workflow
     assert "scripts/render_public_assets.py --check" in workflow
+    assert "install -y imagemagick" not in workflow
 
 
 def test_renderer_uses_convert_when_magick_is_unavailable(monkeypatch):
@@ -126,3 +126,15 @@ def test_hero_asset_is_a_terminal_proof_not_a_marketing_poster():
     assert "ACT 2 / SAME TEST" in renderer
     assert "ACT 3 / FRESH HOLDOUT" in renderer
     assert "YOUR AI DIDN&apos;T GET SMARTER" not in renderer
+
+
+def test_asset_check_is_independent_of_the_local_image_encoder(monkeypatch):
+    renderer = load_renderer_module()
+
+    monkeypatch.setattr(
+        renderer,
+        "render",
+        lambda _output_dir: (_ for _ in ()).throw(AssertionError("must not render in check mode")),
+    )
+
+    assert renderer.main(["--check"]) == 0
