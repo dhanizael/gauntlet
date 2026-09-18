@@ -18,5 +18,9 @@ transmitted by humans ever again; the publisher config on PyPI names repo + work
   to publishing. Cost: publishing now requires GitHub Actions availability, and a
   mis-named workflow file silently breaks the pipeline — hence the tag-match guard and
   this ADR recording the exact expected identity.
-- First live test is the next release (v0.4). Until then the claim is "configured",
-  not "proven" — and we say so out loud, because that is the entire product.
+- Discovered during testing: a tag event runs the workflow **as of the tagged commit** —
+  a tag older than the workflow file silently never fires. Tags must point at commits
+  containing `publish.yml` (v0.3.0 was re-pointed accordingly).
+- First live proof: the v0.3.0 re-push (duplicate-version rejection from PyPI = the
+  identity handshake worked). Until then the claim is "configured", not "proven" —
+  and we say so out loud, because that is the entire product.
