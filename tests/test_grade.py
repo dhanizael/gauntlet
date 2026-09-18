@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from typing import TypedDict, Unpack
 
 import pytest
 
@@ -35,10 +36,28 @@ def build(tmp_path, tasks, arms=("good", "bad"), repeats=3, good_on=None, script
     return exp
 
 
-def cfg(**kw):
-    base = dict(primary="good", baseline="bad")
-    base.update(kw)
-    return GradeConfig(**base)
+class GradeOverrides(TypedDict, total=False):
+    """Keyword overrides accepted by the test-only GradeConfig factory."""
+
+    primary: str
+    baseline: str
+    margin: float
+    bootstrap_b: int
+    seed: int
+    require_every_task: bool
+    max_excluded_pct: float
+
+
+def cfg(**kw: Unpack[GradeOverrides]) -> GradeConfig:
+    return GradeConfig(
+        primary=kw.get("primary", "good"),
+        baseline=kw.get("baseline", "bad"),
+        margin=kw.get("margin", 0.10),
+        bootstrap_b=kw.get("bootstrap_b", 10_000),
+        seed=kw.get("seed", 20260918),
+        require_every_task=kw.get("require_every_task", False),
+        max_excluded_pct=kw.get("max_excluded_pct", 25.0),
+    )
 
 
 def task(tid="median", verifier=None):

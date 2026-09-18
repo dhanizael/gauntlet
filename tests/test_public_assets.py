@@ -85,3 +85,9 @@ def test_public_assets_preserve_only_the_demo_reveal():
     for secret in ("SUM OF SQUARES", "ANSWER:"):
         assert secret not in transcript
         assert secret in renderer  # renderer rejects secret-bearing input before rendering
+
+
+def test_ci_keeps_generated_proof_assets_current():
+    workflow = Path(".github/workflows/ci.yml").read_text()
+    assert "install -y imagemagick" in workflow
+    assert "scripts/render_public_assets.py --check" in workflow

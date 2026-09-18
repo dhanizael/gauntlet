@@ -12,6 +12,8 @@ jobs:
         python-version: ["3.11", "3.13"]
     steps:
       - uses: actions/checkout@v4
+      - name: install public-asset renderer
+        run: sudo apt-get update && sudo apt-get install -y imagemagick
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: ${{ matrix.python-version }}
@@ -21,6 +23,8 @@ jobs:
         run: |
           uv run python scripts/refresh_demo_transcript.py
           git diff --exit-code -- docs/assets/demo-transcript.txt
+      - name: public proof assets are current
+        run: uv run python scripts/render_public_assets.py --check
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run ty check src/
