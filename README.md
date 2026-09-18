@@ -31,6 +31,8 @@ The +1.0 was memory, not intelligence.
 
 ![Gauntlet's causal loop: an apparent improvement is checked for memory leakage, then retested on a fresh holdout.](docs/assets/gauntlet-causal-loop.svg)
 
+Prefer to watch it? The real command is available as a [playable terminal cast](docs/assets/gauntlet-demo.cast).
+
 ## See it. Then check yours.
 
 - **See the proof:** read [the self-audit case study](docs/CASE_STUDY.md).

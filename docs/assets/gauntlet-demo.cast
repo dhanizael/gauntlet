@@ -1,0 +1,7 @@
+{"version": 2, "width": 110, "height": 30, "timestamp": 1789715230, "idle_time_limit": 0.15, "env": {"SHELL": "/bin/bash", "TERM": "dumb"}, "title": "Gauntlet: memory, not intelligence"}
+[0.110885, "o", "gauntlet demo — 'did your agent improve, or did it remember the test?'\r\n(scripted agents + the real public API; isolated temporary workdir)\r\n\r\nACT 1 — baseline eval, task frostgate-A (both agents use the wrong method)\r\n"]
+[0.222068, "o", "  verdict: PROVISIONAL (net 0.0) — v2's memory has nothing to offer yet\r\n\r\nACT 2 — v2's feedback loop persists the task + correct answer to its memory\r\n"]
+[0.31161, "o", "  verdict: KEEP (net 1.0) — ship it! v2 is +1.0 better!\r\n\r\nACT 3 — guard scans the agent's persistent memory against the sealed manifest\r\n"]
+[0.311982, "o", "  [EXACT] LESSONS.md :: frostgate-A (13/13 shingles) — hashes, not content\r\n"]
+[0.312132, "o", "  instance frostgate-A RETIRED (a leaked holdout is dead; regenerate, don't repair)\r\n\r\nACT 3b — fresh holdout instance (same shape, new numbers), same agents, same memory\r\n"]
+[0.403072, "o", "  verdict: PROVISIONAL (net 0.0) — the +1.0 was memory, not intelligence\r\n\r\n========================================================================\r\nTraditional benchmarks assume every trial starts clean. Stateful agents\r\nbreak that assumption. gauntlet is the integrity layer that notices.\r\n\r\nreproduce anytime:  gauntlet demo   (exit 0 if the story holds)\r\n"]

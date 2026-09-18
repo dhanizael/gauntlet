@@ -24,6 +24,15 @@ def test_causal_loop_svg_does_not_expose_demo_secret_text():
     assert "ANSWER:" not in svg
 
 
+def test_terminal_cast_contains_the_public_demo_without_secret_text():
+    cast = Path("docs/assets/gauntlet-demo.cast").read_text()
+    assert '"version": 2' in cast
+    assert "ACT 1" in cast and "ACT 2" in cast and "ACT 3" in cast
+    assert "memory, not intelligence" in cast
+    assert "SUM OF SQUARES" not in cast
+    assert "ANSWER:" not in cast
+
+
 def test_case_study_states_evidence_and_limits():
     case_study = Path("docs/CASE_STUDY.md").read_text()
     for phrase in (

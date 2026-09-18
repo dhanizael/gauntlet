@@ -20,6 +20,6 @@ verification directory was `/tmp/tmp.z8K3O1M120`.
 - [x] Case-study metrics cite checked-in evidence and disclose limits.
 
 Verified 2026-09-18 on branch `feat/public-proof-launch`: `tests/test_demo.py` compares the
-checked-in transcript with executable output, `tests/test_public_assets.py` verifies the SVG's
-accessible causal labels and secret-text exclusions, and the case study explicitly states its
-evidence and limits.
+checked-in transcript with executable output, `tests/test_public_assets.py` verifies the SVG and
+terminal cast's public labels and secret-text exclusions, and the case study explicitly states
+its evidence and limits. Regenerate the cast with `scripts/record_demo_cast.sh`.
