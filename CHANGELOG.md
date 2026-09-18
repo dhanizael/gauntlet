@@ -26,7 +26,7 @@
 - **Content-free ledger**: hashes and ids only — a leaked ledger leaks
   nothing (redaction contract, ADR-0002).
 - Design pre-registered in `docs/HOLDOUT_DESIGN.md` + [ADR-0012](docs/adr/0012-holdout-families.md)
-  BEFORE code. 101 tests (29 new).
+  BEFORE code; hardening fixes from a fresh-eyes review landed before release (validation on every operation, seq-stamped ledger, exclusive operation lock, full-digest content hashing, 2^63 slot-range cap, budget counts skips only). 106 tests (34 new).
 
 ## v0.3.3 — 2026-09-18
 

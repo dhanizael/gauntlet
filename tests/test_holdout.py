@@ -48,7 +48,7 @@ FAMILY = {
 
 # T2: measured once (T1 determinism), pinned here; CI matrix (3.11 + 3.13)
 # then proves byte-identical derivation across Python versions.
-GOLDEN = "872712b8a4b2cb91bf2e97bdaf3cfde4bde67ec496e37cb58473eab30b3043fa"
+GOLDEN = "4664bb72fae54b2d480cce59b010e84eab4be8496766098904dc795d5547b3c6"
 
 
 def write_family(tmp_path: Path, family: dict, name: str = "family.json") -> Path:
@@ -194,7 +194,7 @@ def test_chain_tamper_is_named(tmp_path):
     raw = path.read_bytes().replace(b"frostgate:1", b"frostgate:X")
     path.write_bytes(raw)
     problems = verify_chain(path)
-    assert problems and "chain" in problems[0]
+    assert problems and "chain" in problems[0] and "seq 2" in problems[0]
     with pytest.raises(HoldoutIntegrityError):
         load_ledger(path)
 
@@ -379,6 +379,8 @@ def test_status_counts_warnings_and_cardinality_cap(tmp_path):
     big = {
         **FAMILY,
         "id": "big",
+        "prompt": "big {{ nums }}",
+        "fixtures": {},
         "slots": {"nums": {"kind": "int_list", "count": 12, "min": 1, "max": 1000}},
     }
     fam_b = write_family(tmp_path, big, "big.json")
@@ -389,6 +391,7 @@ def test_status_counts_warnings_and_cardinality_cap(tmp_path):
         "id": "tiny",
         "slots": {"n": {"kind": "int", "min": 1, "max": 3}},
         "prompt": "tiny {{ n }}",
+        "fixtures": {},
     }
     st_tiny = status(write_family(tmp_path, tiny, "tiny.json"), mf, priv)
     assert any("enumerable" in w for w in st_tiny["warnings"])
@@ -447,6 +450,7 @@ def test_cli_exit_codes_validation_and_gate(tmp_path):
     assert (
         main(["holdout", "new", str(bad), "--manifest", str(mf), "--private-dir", str(priv)]) == 2
     )
+    assert mf.read_text() == "" and list(priv.iterdir()) == []  # nothing written
     tiny = {
         **FAMILY,
         "id": "tiny",
@@ -471,3 +475,75 @@ def test_golden_hash_cross_version_pin(tmp_path):
     generate(fam, mf, priv)
     digests = {e["content_sha256"] for e in ledger_hashes(ledger_path_for(priv, "frostgate"))}
     assert digests == {GOLDEN}
+
+
+def test_missing_family_file_is_usage_error_not_crash(tmp_path):
+    fam, mf, priv = setup_gen(tmp_path, FAMILY)
+    code = main(
+        [
+            "holdout",
+            "new",
+            str(tmp_path / "nope.json"),
+            "--manifest",
+            str(mf),
+            "--private-dir",
+            str(priv),
+        ]
+    )
+    assert code == 2
+    assert mf.read_text() == "" and list(priv.iterdir()) == []
+
+
+def test_doctored_family_id_cannot_reach_the_ledger(tmp_path):
+    fam, mf, priv = setup_gen(tmp_path, FAMILY)
+    generate(fam, mf, priv)
+    evil = write_family(tmp_path, {**FAMILY, "id": "../esc"}, "evil.json")
+    code = main(
+        [
+            "holdout",
+            "retire",
+            str(evil),
+            "--instance",
+            "frostgate-0",
+            "--manifest",
+            str(mf),
+            "--private-dir",
+            str(priv),
+        ]
+    )
+    assert code == 2
+    from gauntlet.manifest import load_manifest
+
+    assert all(not r.retired for r in load_manifest(mf))  # corruption refused
+
+
+def test_slot_range_capped_at_prng_domain(tmp_path):
+    huge = {
+        **FAMILY,
+        "slots": {"n": {"kind": "int", "min": 1, "max": 10**22}},
+        "prompt": "n {{ n }}",
+        "fixtures": {},
+    }
+    with pytest.raises(HoldoutUsageError):
+        validate_family(huge, tmp_path)
+
+
+def test_retire_is_idempotent(tmp_path):
+    fam, mf, priv = setup_gen(tmp_path, FAMILY)
+    generate(fam, mf, priv)
+    retire(fam, "frostgate-0", mf, priv)
+    again = retire(fam, "frostgate-0", mf, priv)
+    assert again["manifest_retired"] and not again["ledger_retired"]
+    entries = ledger_hashes(ledger_path_for(priv, "frostgate"))
+    assert sum(1 for e in entries if e["kind"] == "retired") == 1
+    assert verify(fam, mf, priv) == []
+
+
+def test_concurrent_operations_are_locked_out(tmp_path):
+    fam, mf, priv = setup_gen(tmp_path, FAMILY)
+    lock = ledger_path_for(priv, "frostgate").with_suffix(".jsonl.lock")
+    lock.write_text("")
+    with pytest.raises(HoldoutIntegrityError):
+        generate(fam, mf, priv)
+    lock.unlink()
+    assert generate(fam, mf, priv)[0]["instance"] == "frostgate-0"

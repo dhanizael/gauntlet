@@ -155,3 +155,22 @@ naming seq · T9 manifest↔ledger divergence both directions ⇒ exit 1 · T10
 cross-family overlap ⇒ skipped · T12 ledger contains no prompt substring ·
 T13 cardinality warning + cap · T14 validation failures write nothing · T15
 exit codes exhaustive through `main()`.
+
+## Amendments (pre-release, 2026-09-18 — review hardening, before first ship)
+
+- The manifest↔ledger cross-check also flags **active** manifest instances
+  carrying this family's seed prefix with no `generated` ledger entry: without
+  the ledger their freshness is unprovable, so a lost ledger is loud, not green.
+- `content_sha256` hashes per-file **full** sha256 digests (not the seal's
+  64-bit-truncated variant) — the composition keeps its collision strength.
+- Ledger-mutating operations (`new`, `retire`) hold an exclusive lockfile
+  (`<ledger>.lock`, O_CREAT|O_EXCL): concurrent runs would fork the chain.
+- `seq` is stamped onto every ledger entry by `append_entry` (the frozen schema
+  names it; the chain error message reports it).
+- Slot ranges are capped at 2^63 — the rejection-sampling domain.
+- The attempt budget counts **skipped** counters only, matching the frozen
+  formula literally (the first implementation also charged successes).
+- All family operations (`retire`/`verify`/`status` included) validate the
+  family file: a doctored id can no longer reach another family's ledger.
+- Every text artifact is written with explicit `encoding="utf-8"`: the
+  byte-stability promise holds beyond the C locale.

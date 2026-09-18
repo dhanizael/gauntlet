@@ -26,13 +26,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import subprocess
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
-from .envfp import sha_file
 from .fingerprint import normalize, sha256_hex, shingle_set
 from .manifest import InstanceRecord, add_instance, load_manifest, retire_instance
 
@@ -103,9 +105,11 @@ class SeedStream:
 
 def load_family(path: Path) -> dict:
     try:
-        family = json.loads(path.read_text())
+        family = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise HoldoutUsageError(f"{path}: invalid JSON ({exc})") from exc
+    except OSError as exc:
+        raise HoldoutUsageError(f"{path}: cannot read family file ({exc})") from exc
     if not isinstance(family, dict) or family.get("schema") != SCHEMA:
         raise HoldoutUsageError(f"{path}: family schema must be {SCHEMA}")
     return family
@@ -131,6 +135,10 @@ def validate_family(family: dict, family_dir: Path) -> None:
             lo, hi = spec.get("min"), spec.get("max")
             if not (isinstance(lo, int) and isinstance(hi, int) and lo <= hi):
                 raise HoldoutUsageError(f"slot {name!r}: needs integer min <= max")
+            if hi - lo + 1 > 2**63:
+                raise HoldoutUsageError(
+                    f"slot {name!r}: range > 2^63 exceeds the PRNG's rejection-sampling domain"
+                )
             if kind == "int_list" and not (
                 isinstance(spec.get("count"), int) and spec["count"] >= 1
             ):
@@ -142,9 +150,11 @@ def validate_family(family: dict, family_dir: Path) -> None:
     fixtures = family.get("fixtures", {})
     if not isinstance(fixtures, dict):
         raise HoldoutUsageError("fixtures must be an object of filename -> template")
-    for fname in fixtures:
-        if "/" in fname or fname.startswith("."):
-            raise HoldoutUsageError(f"fixture name must be a plain filename: {fname!r}")
+    for fname, tmpl in fixtures.items():
+        if not isinstance(fname, str) or not fname or "/" in fname or fname.startswith("."):
+            raise HoldoutUsageError(f"fixture name must be a non-empty plain filename: {fname!r}")
+        if not isinstance(tmpl, str):
+            raise HoldoutUsageError(f"fixture {fname!r}: template must be a string")
     refs = TEMPLATE_REF.findall(prompt) + [
         ref for tmpl in fixtures.values() for ref in TEMPLATE_REF.findall(str(tmpl))
     ]
@@ -263,12 +273,34 @@ def append_entry(path: Path, entry: dict) -> str:
     Refuses to append on top of a broken chain (load_ledger raises first)."""
     entries = load_ledger(path)
     prev = hashlib.sha256(entries[-1][1]).hexdigest() if entries else GENESIS
-    line = _serialize({**entry, "prev": prev})
+    line = _serialize({**entry, "seq": len(entries), "prev": prev})
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("ab") as fh:
-        fh.write(line)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+    try:
+        os.write(fd, line)
+    finally:
+        os.close(fd)
     path.chmod(0o600)
     return hashlib.sha256(line).hexdigest()
+
+
+@contextmanager
+def _operation_lock(ledger_path: Path) -> Iterator[None]:
+    """Cross-process exclusion for ledger-mutating operations: two concurrent
+    `new` runs would both append off the same prev and fork the chain."""
+    lock = ledger_path.with_suffix(ledger_path.suffix + ".lock")
+    try:
+        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError as exc:
+        raise HoldoutIntegrityError(
+            f"another holdout operation is in progress ({lock.name} exists); "
+            "if nothing is running, remove the stale lock file"
+        ) from exc
+    try:
+        yield
+    finally:
+        os.close(fd)
+        lock.unlink(missing_ok=True)
 
 
 def verify_chain(path: Path) -> list[str]:
@@ -288,18 +320,24 @@ def _write_artifacts(family: dict, instance_id: str, values: dict, out_dir: Path
     idir = Path(out_dir) / instance_id
     (idir / "fixtures").mkdir(parents=True, exist_ok=True)
     files = [idir / "prompt.txt"]
-    (idir / "prompt.txt").write_text(render(family["prompt"], values, family["slots"]))
+    (idir / "prompt.txt").write_text(
+        render(family["prompt"], values, family["slots"]), encoding="utf-8"
+    )
     for fname, tmpl in family.get("fixtures", {}).items():
         fpath = idir / "fixtures" / fname
-        fpath.write_text(render(str(tmpl), values, family["slots"]))
+        fpath.write_text(render(tmpl, values, family["slots"]), encoding="utf-8")
         files.append(fpath)
     return files
 
 
 def _content_digest(files: list[Path]) -> str:
+    """Full sha256 per file (NOT the seal's 64-bit-truncated variant): the
+    composition must keep its collision strength."""
     root = files[0].parent
-    lines = [f"{f.relative_to(root)}:{sha_file(f)}" for f in sorted(files)]
-    return sha256_hex("\n".join(lines).encode())
+    lines = [
+        f"{f.relative_to(root)}:{hashlib.sha256(f.read_bytes()).hexdigest()}" for f in sorted(files)
+    ]
+    return sha256_hex("\n".join(lines).encode("utf-8"))
 
 
 def _derive_equals(family: dict, family_dir: Path, values: dict) -> str | None:
@@ -331,16 +369,26 @@ def _derive_equals(family: dict, family_dir: Path, values: dict) -> str | None:
 def _cross_check(
     manifest: list[InstanceRecord], entries: list[tuple[dict, bytes]], fid: str
 ) -> list[str]:
+    ledger_generated = {e["instance"] for e, _ in entries if e["kind"] == "generated"}
     ledger_retired = {e["instance"] for e, _ in entries if e["kind"] == "retired"}
     prefix = f"{fid}:"
     manifest_retired = {r.instance for r in manifest if r.retired and r.seed.startswith(prefix)}
-    return [
-        f"divergence: instance {instance} retired in manifest but not in ledger"
-        for instance in sorted(manifest_retired - ledger_retired)
-    ] + [
-        f"divergence: instance {instance} retired in ledger but active in manifest"
-        for instance in sorted(ledger_retired - manifest_retired)
-    ]
+    family_active = {r.instance for r in manifest if r.seed.startswith(prefix)} - manifest_retired
+    return (
+        [
+            f"divergence: instance {instance} retired in manifest but not in ledger"
+            for instance in sorted(manifest_retired - ledger_retired)
+        ]
+        + [
+            f"divergence: instance {instance} retired in ledger but active in manifest"
+            for instance in sorted(ledger_retired - manifest_retired)
+        ]
+        + [
+            f"divergence: instance {instance} active in manifest but unknown to the ledger "
+            "(no generated entry — without the ledger its freshness is unprovable)"
+            for instance in sorted(family_active - ledger_generated)
+        ]
+    )
 
 
 # ------------------------------------------------------------ operations
@@ -372,13 +420,35 @@ def generate(  # noqa: PLR0913 — the parameters mirror the CLI flags one to on
     seed: str | None = None,
     ledger: Path | None = None,
 ) -> list[dict]:
-    if count < 1:
-        raise HoldoutUsageError("count must be >= 1")
     family = load_family(family_path)
     validate_family(family, family_path.parent)
+    lpath = _resolve_ledger(private_dir, family["id"], ledger)
+    with _operation_lock(lpath):
+        return _generate_locked(
+            family,
+            family_path=family_path,
+            manifest_path=manifest_path,
+            private_dir=private_dir,
+            lpath=lpath,
+            count=count,
+            seed=seed,
+        )
+
+
+def _generate_locked(  # noqa: PLR0913 — internals of one locked generation run
+    family: dict,
+    *,
+    family_path: Path,
+    manifest_path: Path,
+    private_dir: Path,
+    lpath: Path,
+    count: int,
+    seed: str | None,
+) -> list[dict]:
+    if count < 1:
+        raise HoldoutUsageError("count must be >= 1")
     fid = family["id"]
     manifest = _load_manifest_checked(manifest_path)
-    lpath = _resolve_ledger(private_dir, fid, ledger)
     entries = load_ledger(lpath)  # broken chain => HoldoutIntegrityError, nothing written
     problems = _cross_check(manifest, entries, fid)
     if problems:
@@ -402,9 +472,8 @@ def generate(  # noqa: PLR0913 — the parameters mirror the CLI flags one to on
         if budget <= 0:
             raise HoldoutIntegrityError(
                 f"freshness gate exhausted after {ATTEMPT_BUDGET_FACTOR * count + 10} "
-                "attempts; family entropy too low for this count"
+                "skipped counters; family entropy too low for this count"
             )
-        budget -= 1
         if pending is not None:
             seed_str, pending = pending, None
         else:
@@ -423,6 +492,7 @@ def generate(  # noqa: PLR0913 — the parameters mirror the CLI flags one to on
                 lpath,
                 {"kind": "skipped", "seed": seed_str, "reason": "slot-collision", "at": _now()},
             )
+            budget -= 1
             n += 1
             continue
         prompt = render(family["prompt"], values, family["slots"])
@@ -443,6 +513,7 @@ def generate(  # noqa: PLR0913 — the parameters mirror the CLI flags one to on
                     "at": _now(),
                 },
             )
+            budget -= 1
             n += 1
             continue
 
@@ -474,7 +545,9 @@ def generate(  # noqa: PLR0913 — the parameters mirror the CLI flags one to on
         equals = _derive_equals(family, family_path.parent, values)
         if equals is not None:
             task["verifier"]["equals"] = equals
-        (real_dir / "task.json").write_text(json.dumps(task, indent=1, sort_keys=True) + "\n")
+        (real_dir / "task.json").write_text(
+            json.dumps(task, indent=1, sort_keys=True) + "\n", encoding="utf-8"
+        )
 
         rec = add_instance(manifest_path, instance_id, seed_str, promoted)
         manifest.append(rec)
@@ -523,25 +596,30 @@ def retire(
     bleed immediately), ledger second. A crash between the two is a real
     state that 'holdout verify' names from either side."""
     family = load_family(family_path)
+    validate_family(family, family_path.parent)
     fid = family["id"]
     _load_manifest_checked(manifest_path)  # fail fast with exit-2 clarity
     lpath = _resolve_ledger(private_dir, fid, ledger)
-    entries = load_ledger(lpath)
-    manifest_retired = retire_instance(manifest_path, instance)
-    generated = any(e["kind"] == "generated" and e["instance"] == instance for e, _ in entries)
-    if not manifest_retired and not generated:
-        raise HoldoutUsageError(f"unknown instance {instance!r} in manifest or ledger")
-    ledger_retired = False
-    if generated:
-        append_entry(
-            lpath, {"kind": "retired", "instance": instance, "reason": "leak", "at": _now()}
+    with _operation_lock(lpath):
+        entries = load_ledger(lpath)
+        already_retired = any(
+            e["kind"] == "retired" and e["instance"] == instance for e, _ in entries
         )
-        ledger_retired = True
-    return {
-        "instance": instance,
-        "manifest_retired": manifest_retired,
-        "ledger_retired": ledger_retired,
-    }
+        manifest_retired = retire_instance(manifest_path, instance) or already_retired
+        generated = any(e["kind"] == "generated" and e["instance"] == instance for e, _ in entries)
+        if not manifest_retired and not generated:
+            raise HoldoutUsageError(f"unknown instance {instance!r} in manifest or ledger")
+        ledger_retired = False
+        if generated and not already_retired:
+            append_entry(
+                lpath, {"kind": "retired", "instance": instance, "reason": "leak", "at": _now()}
+            )
+            ledger_retired = True
+        return {
+            "instance": instance,
+            "manifest_retired": manifest_retired,
+            "ledger_retired": ledger_retired,
+        }
 
 
 def verify(
@@ -553,6 +631,7 @@ def verify(
     ledger: Path | None = None,
 ) -> list[str]:
     family = load_family(family_path)
+    validate_family(family, family_path.parent)
     fid = family["id"]
     manifest = _load_manifest_checked(manifest_path)
     lpath = _resolve_ledger(private_dir, fid, ledger)
@@ -588,6 +667,7 @@ def status(
     ledger: Path | None = None,
 ) -> dict:
     family = load_family(family_path)
+    validate_family(family, family_path.parent)
     fid = family["id"]
     manifest = _load_manifest_checked(manifest_path)
     lpath = _resolve_ledger(private_dir, fid, ledger)
@@ -598,6 +678,13 @@ def status(
     counters_used = {e["seed"] for e, _ in entries if e["kind"] in ("generated", "skipped")}
     card = cardinality(family)
     warnings = _cross_check(manifest, entries, fid)
+    prefix = f"{fid}:"
+    if not any(r.seed.startswith(prefix) for r in manifest) and any(
+        ":" in r.seed for r in manifest
+    ):
+        warnings.append(
+            f"manifest references other families; this family ({fid!r}) owns none of them"
+        )
     if card < ENUMERABLE_BELOW:
         warnings.append(
             f"enumerable family: cardinality {card} < {ENUMERABLE_BELOW} — widen the slot pools"
