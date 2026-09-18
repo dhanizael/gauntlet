@@ -15,6 +15,11 @@ verification directory was `/tmp/tmp.z8K3O1M120`.
 
 ## Evidence package
 
-- [ ] The cast transcript matches `uv run gauntlet demo`.
-- [ ] README diagram text matches the demo's causal story.
-- [ ] Case-study metrics cite checked-in evidence and disclose limits.
+- [x] The cast transcript matches `uv run gauntlet demo`.
+- [x] README diagram text matches the demo's causal story.
+- [x] Case-study metrics cite checked-in evidence and disclose limits.
+
+Verified 2026-09-18 on branch `feat/public-proof-launch`: `tests/test_demo.py` compares the
+checked-in transcript with executable output, `tests/test_public_assets.py` verifies the SVG's
+accessible causal labels and secret-text exclusions, and the case study explicitly states its
+evidence and limits.
