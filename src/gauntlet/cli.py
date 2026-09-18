@@ -2,7 +2,7 @@
 
 commands:
   gauntlet manifest add|list|retire      sealed instance registry (private side)
-  gauntlet guard scan|selftest           persistence-leak detection
+  gauntlet guard scan|selftest|audit     persistence-leak detection + surface discovery
   gauntlet run init|prep|exec|close|status|verify|blindpack   trial protocol
 """
 
@@ -15,6 +15,7 @@ import tempfile
 from pathlib import Path
 
 from . import __version__
+from .audit import audit_surfaces, audit_to_dict, format_report
 from .demo import run_demo
 from .experiment import init_experiment, load_experiment
 from .grade import GradeConfig, exit_code, grade_experiment, public_face
@@ -51,6 +52,15 @@ def main(argv: list[str] | None = None) -> int:
     gs.add_argument("--max-bytes", type=int, default=8 * 1024 * 1024)
     gs.add_argument("--json", type=Path, default=None)
     gsub.add_parser("selftest", help="plant a synthetic leak and prove it is caught")
+    gau = gsub.add_parser(
+        "audit",
+        help="find agent memory surfaces on this machine (zero setup, content-free)",
+    )
+    gau.add_argument("roots", type=Path, nargs="*", help="dirs to walk (default: home)")
+    gau.add_argument("--max-depth", type=int, default=6)
+    gau.add_argument("--max-files", type=int, default=250_000)
+    gau.add_argument("--max-seconds", type=float, default=20.0)
+    gau.add_argument("--json", type=Path, default=None)
 
     r = sub.add_parser("run", help="trial protocol: isolated arms, drift checks, sealed outputs")
     rsub = r.add_subparsers(dest="rcmd", required=True)
@@ -129,6 +139,8 @@ def main(argv: list[str] | None = None) -> int:
         return _guard_scan(args)
     if args.cmd == "guard" and args.gcmd == "selftest":
         return _guard_selftest()
+    if args.cmd == "guard" and args.gcmd == "audit":
+        return _guard_audit(args)
     if args.cmd == "run":
         return _run_dispatch(args)
     if args.cmd == "grade":
@@ -136,6 +148,22 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "demo":
         return run_demo()
     return 2
+
+
+def _guard_audit(args: argparse.Namespace) -> int:
+    """Zero-setup memory-surface discovery (ADR-0011): names & metadata only,
+    never content. Always exit 0 — an audit is information, not a verdict."""
+    roots = args.roots or [Path.home()]
+    result = audit_surfaces(
+        roots,
+        max_depth=args.max_depth,
+        max_files=args.max_files,
+        max_seconds=args.max_seconds,
+    )
+    print(format_report(result, roots))
+    if args.json:
+        args.json.write_text(json.dumps(audit_to_dict(result, roots), indent=1))
+    return 0
 
 
 def _grade(args: argparse.Namespace) -> int:

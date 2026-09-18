@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.3.3 — 2026-09-18
+
+`guard audit` — the zero-setup hook — and a README that answers "is this my
+problem?" before asking for install.
+
+- `gauntlet guard audit [roots...]` walks the machine (default: home; caps:
+  depth 6, 250k entries, 20 s — reported honestly when truncated) and reports
+  agent memory surfaces: memory files, agent state dirs, transcript/log dirs,
+  vector stores. Content-free by construction: **it never opens a file** —
+  names, sizes, dates only (extends ADR-0002; recorded in ADR-0011).
+- Discovery is name-based and heuristic: it finds the surfaces to scan, not
+  the leaks. Exit code is always 0 — an audit is information, not a verdict.
+  The report funnels into the existing protocol: `manifest add` → `guard scan`.
+- Dogfooding on a real home directory: 98k entries in 2.3 s. Package-manager
+  and plugin caches (which ship bundled `AGENTS.md` docs) are skipped as noise.
+- README rebuilt around the first-time visitor: a problem-fit checklist with
+  an honest disqualifier ("stateless agent, one-shot evals? you don't need
+  this"), the 30-second machine audit as the hook, "why not just keep the
+  test set secret?", a plain-language glossary, real captured output for the
+  grade verdict (the audit sample is the same output with paths abbreviated),
+  and a copy-paste end-to-end example (`examples/mini/walkthrough.sh`, ~15 s,
+  $0, no LLM).
+- 69 tests (15 new for audit: content-never-read pinned mechanically,
+  caps as truncation, symlink cycles, missing roots surfaced, deterministic
+  ordering, no false positives on plain DBs, CLI wiring).
+
 ## v0.3.2 — 2026-09-18
 
 `gauntlet demo` — the failure mode, made impossible to miss.

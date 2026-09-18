@@ -12,3 +12,6 @@ wheels/
 .pytest_cache/
 .ruff_cache/
 .worktrees/
+
+# agent harness working state (private side)
+.agent-state/

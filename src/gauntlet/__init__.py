@@ -1,3 +1,3 @@
 """gauntlet — the anti-cheating layer for evaluating self-improving agents."""
 
-__version__ = "0.3.2"
+__version__ = "0.3.3"
